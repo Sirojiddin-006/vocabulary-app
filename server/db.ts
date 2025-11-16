@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, or, isNull, and, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, users, folders, words, userProgress } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,156 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+export async function getUserById(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+// Folder queries
+export async function getFolders(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Get admin folders (global) and user's own folders
+  return db.select().from(folders).where(
+    or(
+      isNull(folders.createdBy),
+      eq(folders.createdBy, userId)
+    )
+  );
+}
+
+export async function getFolderById(folderId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  
+  const result = await db.select().from(folders).where(
+    and(
+      eq(folders.id, folderId),
+      or(
+        isNull(folders.createdBy),
+        eq(folders.createdBy, userId)
+      )
+    )
+  ).limit(1);
+  
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createFolder(name: string, description: string | null, createdBy: number | null) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(folders).values({
+    name,
+    description,
+    createdBy,
+    isGlobal: createdBy === null,
+  });
+  
+  return result;
+}
+
+// Word queries
+export async function getWordsByFolderId(folderId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // First check if user has access to the folder
+  const folder = await getFolderById(folderId, userId);
+  if (!folder) return [];
+  
+  // Get words from the folder (both admin and user's own words)
+  return db.select().from(words).where(
+    and(
+      eq(words.folderId, folderId),
+      or(
+        isNull(words.createdBy),
+        eq(words.createdBy, userId)
+      )
+    )
+  );
+}
+
+export async function createWord(folderId: number, english: string, uzbek: string, example: string | null, createdBy: number | null) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(words).values({
+    folderId,
+    english,
+    uzbek,
+    example,
+    createdBy,
+  });
+  
+  return result;
+}
+
+// User progress queries
+export async function getUserProgress(userId: number, folderId: number) {
+  const db = await getDb();
+  if (!db) return { totalWords: 0, knownWords: 0, progress: [] };
+  
+  // Get all words in the folder that the user has access to
+  const folderWords = await getWordsByFolderId(folderId, userId);
+  const wordIds = folderWords.map(w => w.id);
+  
+  if (wordIds.length === 0) {
+    return { totalWords: 0, knownWords: 0, progress: [] };
+  }
+  
+  // Get user's progress for these words
+  const progress = await db.select().from(userProgress).where(
+    and(
+      eq(userProgress.userId, userId),
+      inArray(userProgress.wordId, wordIds)
+    )
+  );
+  
+  const knownCount = progress.filter(p => p.known).length;
+  
+  return {
+    totalWords: folderWords.length,
+    knownWords: knownCount,
+    progress,
+  };
+}
+
+export async function updateUserProgress(userId: number, wordId: number, known: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Check if progress record exists
+  const existing = await db.select().from(userProgress).where(
+    and(
+      eq(userProgress.userId, userId),
+      eq(userProgress.wordId, wordId)
+    )
+  ).limit(1);
+  
+  if (existing.length > 0) {
+    // Update existing record
+    await db.update(userProgress).set({
+      known,
+      reviewCount: existing[0].reviewCount + 1,
+      lastReviewedAt: new Date(),
+    }).where(
+      and(
+        eq(userProgress.userId, userId),
+        eq(userProgress.wordId, wordId)
+      )
+    );
+  } else {
+    // Create new record
+    await db.insert(userProgress).values({
+      userId,
+      wordId,
+      known,
+      reviewCount: 1,
+      lastReviewedAt: new Date(),
+    });
+  }
+}
