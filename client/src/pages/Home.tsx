@@ -31,11 +31,6 @@ export default function Home() {
     },
   });
 
-  // Calculate total stats from all folders
-  const totalWords = folders.length;
-  const totalKnown = Math.floor(folders.length * 0.3); // Placeholder
-  const knownPercentage = totalWords > 0 ? (totalKnown / totalWords) * 100 : 0;
-
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0F1720] flex items-center justify-center">
@@ -88,24 +83,14 @@ export default function Home() {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-[#0EA5FF]" />
-            <span className="text-[#A6B0BE] text-sm">Unknown: {totalWords - totalKnown}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[#A6B0BE] text-sm">Known: {totalKnown}</span>
-            <div className="w-2 h-2 rounded-full bg-[#10B981]" />
+            <span className="text-[#A6B0BE] text-sm">Learning Progress</span>
           </div>
         </div>
         <div className="h-2 bg-[#15202B] rounded-full overflow-hidden">
-          <div className="h-full flex">
-            <div
-              className="bg-[#0EA5FF]"
-              style={{ width: `${100 - knownPercentage}%` }}
-            />
-            <div
-              className="bg-[#10B981]"
-              style={{ width: `${knownPercentage}%` }}
-            />
-          </div>
+          <div
+            className="bg-[#10B981] h-full rounded-full transition-all"
+            style={{ width: "0%" }}
+          />
         </div>
       </div>
 
@@ -130,42 +115,20 @@ export default function Home() {
         ) : (
           <div className="space-y-3">
             {folders.map((folder) => (
-              <Card
-                key={folder.id}
-                onClick={() => setLocation(`/folder/${folder.id}`)}
-                className="bg-[#15202B] border-0 p-4 cursor-pointer hover:bg-[#1a2732] transition-colors"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-white font-semibold">{folder.name}</h3>
-                  <span className="text-[#A6B0BE] text-sm">0 words</span>
-                </div>
-                <div className="h-1.5 bg-[#0F1720] rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[#10B981] rounded-full transition-all"
-                    style={{ width: "0%" }}
-                  />
-                </div>
-              </Card>
+              <FolderCard key={folder.id} folder={folder} onSelect={() => setLocation(`/folder/${folder.id}`)} />
             ))}
           </div>
         )}
       </div>
 
-      {/* Bottom Action Buttons */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-[390px] mx-auto px-6 py-4 bg-[#0F1720] border-t border-[#15202B] flex gap-3">
+      {/* Bottom Action Button */}
+      <div className="fixed bottom-0 left-0 right-0 max-w-[390px] mx-auto px-6 py-4 bg-[#0F1720] border-t border-[#15202B]">
         <Button
           onClick={() => setShowNewFolderDialog(true)}
-          className="flex-1 bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full"
+          className="w-full bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full"
         >
           <Plus className="w-4 h-4 mr-2" />
           New Folder
-        </Button>
-        <Button
-          onClick={() => setLocation("/memorize")}
-          className="flex-1 bg-[#10B981] hover:bg-[#0ea073] text-white rounded-full"
-        >
-          <BookOpen className="w-4 h-4 mr-2" />
-          Memorize
         </Button>
       </div>
 
@@ -204,5 +167,36 @@ export default function Home() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// Separate component for each folder card to handle individual queries
+function FolderCard({ folder, onSelect }: { folder: any; onSelect: () => void }) {
+  const { data: progress, isLoading } = trpc.vocabulary.getProgress.useQuery({
+    folderId: folder.id,
+  });
+
+  const wordCount = progress?.totalWords || 0;
+  const knownCount = progress?.knownWords || 0;
+  const percentage = wordCount > 0 ? (knownCount / wordCount) * 100 : 0;
+
+  return (
+    <Card
+      onClick={onSelect}
+      className="bg-[#15202B] border-0 p-4 cursor-pointer hover:bg-[#1a2732] transition-colors"
+    >
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-white font-semibold">{folder.name}</h3>
+        <span className="text-[#A6B0BE] text-sm">
+          {isLoading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : `${wordCount} words`}
+        </span>
+      </div>
+      <div className="h-1.5 bg-[#0F1720] rounded-full overflow-hidden">
+        <div
+          className="h-full bg-[#10B981] rounded-full transition-all"
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+    </Card>
   );
 }
