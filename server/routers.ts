@@ -29,6 +29,10 @@ export const appRouter = router({
       .mutation(({ ctx }) =>
         db.deleteUser(ctx.user.id)
       ),
+    getTotalStats: protectedProcedure
+      .query(({ ctx }) =>
+        db.getUserTotalStats(ctx.user.id)
+      ),
   }),
 
   vocabulary: router({

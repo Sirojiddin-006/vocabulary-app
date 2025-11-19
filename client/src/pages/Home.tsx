@@ -21,6 +21,12 @@ export default function Home() {
     { enabled: isAuthenticated }
   );
 
+  // Fetch total statistics
+  const { data: totalStats } = trpc.auth.getTotalStats.useQuery(
+    undefined,
+    { enabled: isAuthenticated }
+  );
+
   // Create folder mutation
   const createFolderMutation = trpc.vocabulary.createFolder.useMutation({
     onSuccess: () => {
@@ -28,8 +34,14 @@ export default function Home() {
       setShowNewFolderDialog(false);
       // Invalidate folders query to refresh
       trpc.useUtils().vocabulary.getFolders.invalidate();
+      trpc.useUtils().auth.getTotalStats.invalidate();
     },
   });
+
+  const totalWords = totalStats?.totalWords || 0;
+  const knownWords = totalStats?.knownWords || 0;
+  const unknownWords = totalStats?.unknownWords || 0;
+  const knownPercentage = totalWords > 0 ? (knownWords / totalWords) * 100 : 0;
 
   if (loading) {
     return (
@@ -92,13 +104,21 @@ export default function Home() {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-[#0EA5FF]" />
-            <span className="text-[#A6B0BE] text-sm">Learning Progress</span>
+            <span className="text-[#A6B0BE] text-sm">Unknown: {unknownWords}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[#A6B0BE] text-sm">Known: {knownWords}</span>
+            <div className="w-2 h-2 rounded-full bg-[#10B981]" />
           </div>
         </div>
         <div className="h-2 bg-[#15202B] rounded-full overflow-hidden">
           <div
-            className="bg-[#10B981] h-full rounded-full transition-all"
-            style={{ width: "0%" }}
+            className="bg-[#0EA5FF] h-full rounded-full transition-all"
+            style={{ width: `${100 - knownPercentage}%` }}
+          />
+          <div
+            className="bg-[#10B981] h-full rounded-full transition-all float-right"
+            style={{ width: `${knownPercentage}%` }}
           />
         </div>
       </div>

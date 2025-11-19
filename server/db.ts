@@ -278,3 +278,52 @@ export async function deleteUser(userId: number) {
   
   return { success: true };
 }
+
+
+export async function getUserTotalStats(userId: number) {
+  const db = await getDb();
+  if (!db) return { totalWords: 0, knownWords: 0, unknownWords: 0 };
+  
+  // Get all folders accessible to the user
+  const userFolders = await getFolders(userId);
+  
+  if (userFolders.length === 0) {
+    return { totalWords: 0, knownWords: 0, unknownWords: 0 };
+  }
+  
+  const folderIds = userFolders.map(f => f.id);
+  
+  // Get all words in all accessible folders
+  const allWords = await db.select().from(words).where(
+    and(
+      inArray(words.folderId, folderIds),
+      or(
+        isNull(words.createdBy),
+        eq(words.createdBy, userId)
+      )
+    )
+  );
+  
+  const wordIds = allWords.map(w => w.id);
+  
+  if (wordIds.length === 0) {
+    return { totalWords: 0, knownWords: 0, unknownWords: 0 };
+  }
+  
+  // Get user's progress for these words
+  const progress = await db.select().from(userProgress).where(
+    and(
+      eq(userProgress.userId, userId),
+      inArray(userProgress.wordId, wordIds)
+    )
+  );
+  
+  const knownCount = progress.filter(p => p.known).length;
+  const unknownCount = allWords.length - knownCount;
+  
+  return {
+    totalWords: allWords.length,
+    knownWords: knownCount,
+    unknownWords: unknownCount,
+  };
+}

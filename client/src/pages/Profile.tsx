@@ -17,7 +17,13 @@ export default function Profile() {
   const [editName, setEditName] = useState(user?.name || "");
   const [editEmail, setEditEmail] = useState(user?.email || "");
 
-  // Fetch folders to calculate stats
+  // Fetch total statistics
+  const { data: totalStats } = trpc.auth.getTotalStats.useQuery(
+    undefined,
+    { enabled: isAuthenticated }
+  );
+
+  // Fetch folders to calculate folder count
   const { data: folders = [] } = trpc.vocabulary.getFolders.useQuery(
     undefined,
     { enabled: isAuthenticated }
@@ -49,8 +55,9 @@ export default function Profile() {
 
   // Calculate statistics
   const totalFolders = folders.length;
-  const totalWords = folders.length; // Placeholder - would need to fetch all words
-  const totalKnown = Math.floor(totalWords * 0.3); // Placeholder
+  const totalWords = totalStats?.totalWords || 0;
+  const knownWords = totalStats?.knownWords || 0;
+  const unknownWords = totalStats?.unknownWords || 0;
 
   const handleLogout = async () => {
     await logout();
@@ -126,10 +133,18 @@ export default function Profile() {
               <TrendingUp className="w-5 h-5 text-[#10B981]" />
               <span className="text-[#A6B0BE] text-sm">Words Known</span>
             </div>
-            <p className="text-3xl font-bold text-white">{totalKnown}</p>
+            <p className="text-3xl font-bold text-white">{knownWords}</p>
           </Card>
 
-          <Card className="bg-[#15202B] border-0 p-4 col-span-2">
+          <Card className="bg-[#15202B] border-0 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <BookOpen className="w-5 h-5 text-[#0EA5FF]" />
+              <span className="text-[#A6B0BE] text-sm">Unknown</span>
+            </div>
+            <p className="text-3xl font-bold text-white">{unknownWords}</p>
+          </Card>
+
+          <Card className="bg-[#15202B] border-0 p-4">
             <div className="flex items-center justify-between">
               <span className="text-[#A6B0BE]">Total Words</span>
               <p className="text-2xl font-bold text-white">{totalWords}</p>
