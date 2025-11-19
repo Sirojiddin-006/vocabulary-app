@@ -17,6 +17,18 @@ export const appRouter = router({
         success: true,
       } as const;
     }),
+    updateProfile: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1).max(255).optional(),
+        email: z.string().email().max(320).optional(),
+      }))
+      .mutation(({ ctx, input }) =>
+        db.updateUser(ctx.user.id, input)
+      ),
+    deleteAccount: protectedProcedure
+      .mutation(({ ctx }) =>
+        db.deleteUser(ctx.user.id)
+      ),
   }),
 
   vocabulary: router({

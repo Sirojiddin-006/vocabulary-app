@@ -242,3 +242,39 @@ export async function updateUserProgress(userId: number, wordId: number, known: 
     });
   }
 }
+
+// User profile queries
+export async function updateUser(userId: number, data: { name?: string; email?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const updateData: Record<string, unknown> = {};
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.email !== undefined) updateData.email = data.email;
+  updateData.updatedAt = new Date();
+  
+  await db.update(users).set(updateData).where(eq(users.id, userId));
+  
+  // Return updated user
+  const result = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function deleteUser(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Delete all user's progress records
+  await db.delete(userProgress).where(eq(userProgress.userId, userId));
+  
+  // Delete all user's words
+  await db.delete(words).where(eq(words.createdBy, userId));
+  
+  // Delete all user's folders
+  await db.delete(folders).where(eq(folders.createdBy, userId));
+  
+  // Delete the user
+  await db.delete(users).where(eq(users.id, userId));
+  
+  return { success: true };
+}

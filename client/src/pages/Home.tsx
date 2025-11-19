@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Loader2, Plus, BookOpen, LogOut } from "lucide-react";
+import { Loader2, Plus, BookOpen, LogOut, User } from "lucide-react";
 import { APP_LOGO, APP_TITLE, getLoginUrl } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
@@ -64,13 +64,22 @@ export default function Home() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 pt-4 pb-3 border-b border-[#15202B]">
         <h1 className="text-xl font-bold">{APP_TITLE}</h1>
-        <button
-          onClick={() => logout()}
-          className="p-2 hover:bg-[#15202B] rounded-lg transition-colors"
-          title="Logout"
-        >
-          <LogOut className="w-5 h-5 text-[#A6B0BE]" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setLocation("/profile")}
+            className="p-2 hover:bg-[#15202B] rounded-lg transition-colors"
+            title="Profile"
+          >
+            <User className="w-5 h-5 text-[#A6B0BE]" />
+          </button>
+          <button
+            onClick={() => logout()}
+            className="p-2 hover:bg-[#15202B] rounded-lg transition-colors"
+            title="Logout"
+          >
+            <LogOut className="w-5 h-5 text-[#A6B0BE]" />
+          </button>
+        </div>
       </div>
 
       {/* Welcome Message */}
