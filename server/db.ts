@@ -248,16 +248,21 @@ export async function updateUser(userId: number, data: { name?: string; email?: 
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  const updateData: Record<string, unknown> = {};
-  if (data.name !== undefined) updateData.name = data.name;
-  if (data.email !== undefined) updateData.email = data.email;
-  updateData.updatedAt = new Date();
-  
-  await db.update(users).set(updateData).where(eq(users.id, userId));
-  
-  // Return updated user
-  const result = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-  return result.length > 0 ? result[0] : undefined;
+  try {
+    const updateData: Record<string, unknown> = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.email !== undefined) updateData.email = data.email;
+    updateData.updatedAt = new Date();
+    
+    await db.update(users).set(updateData).where(eq(users.id, userId));
+    
+    // Return updated user
+    const result = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    return result.length > 0 ? result[0] : undefined;
+  } catch (error) {
+    console.error("[Database] Failed to update user:", error);
+    throw new Error("Failed to update profile");
+  }
 }
 
 export async function deleteUser(userId: number) {

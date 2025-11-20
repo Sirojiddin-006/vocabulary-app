@@ -39,12 +39,14 @@ export default function Profile() {
 
   // Update profile mutation
   const updateProfileMutation = trpc.auth.updateProfile.useMutation({
-    onSuccess: (data) => {
+    onSuccess: () => {
       setShowEditDialog(false);
       toast.success("Profile updated successfully");
       trpc.useUtils().auth.me.invalidate();
+      trpc.useUtils().auth.getTotalStats.invalidate();
     },
     onError: (error) => {
+      console.error("Update error:", error);
       toast.error(error.message || "Failed to update profile");
     },
   });
@@ -78,10 +80,14 @@ export default function Profile() {
       return;
     }
 
-    updateProfileMutation.mutate({
-      name: editName.trim(),
-      email: editEmail.trim() || undefined,
-    });
+    try {
+      updateProfileMutation.mutate({
+        name: editName.trim(),
+        email: editEmail.trim() || undefined,
+      });
+    } catch (error) {
+      console.error("Error updating profile:", error);
+    }
   };
 
   const handleDeleteAccount = () => {
