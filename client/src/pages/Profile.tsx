@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { ChevronLeft, LogOut, User, BookOpen, TrendingUp, Edit2, Trash2, AlertTriangle, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 
 export default function Profile() {
@@ -14,8 +14,16 @@ export default function Profile() {
   const [, setLocation] = useLocation();
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [editName, setEditName] = useState(user?.name || "");
-  const [editEmail, setEditEmail] = useState(user?.email || "");
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+
+  // Initialize edit fields when user data loads
+  useEffect(() => {
+    if (user) {
+      setEditName(user.name || "");
+      setEditEmail(user.email || "");
+    }
+  }, [user]);
 
   // Fetch total statistics
   const { data: totalStats } = trpc.auth.getTotalStats.useQuery(
@@ -31,7 +39,7 @@ export default function Profile() {
 
   // Update profile mutation
   const updateProfileMutation = trpc.auth.updateProfile.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       setShowEditDialog(false);
       toast.success("Profile updated successfully");
       trpc.useUtils().auth.me.invalidate();
@@ -131,7 +139,7 @@ export default function Profile() {
           <Card className="bg-[#15202B] border-0 p-4">
             <div className="flex items-center gap-2 mb-2">
               <TrendingUp className="w-5 h-5 text-[#10B981]" />
-              <span className="text-[#A6B0BE] text-sm">Words Known</span>
+              <span className="text-[#A6B0BE] text-sm">Known</span>
             </div>
             <p className="text-3xl font-bold text-white">{knownWords}</p>
           </Card>
@@ -145,10 +153,11 @@ export default function Profile() {
           </Card>
 
           <Card className="bg-[#15202B] border-0 p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[#A6B0BE]">Total Words</span>
-              <p className="text-2xl font-bold text-white">{totalWords}</p>
+            <div className="flex items-center gap-2 mb-2">
+              <BookOpen className="w-5 h-5 text-[#A6B0BE]" />
+              <span className="text-[#A6B0BE] text-sm">Total</span>
             </div>
+            <p className="text-3xl font-bold text-white">{totalWords}</p>
           </Card>
         </div>
       </div>
