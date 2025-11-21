@@ -42,8 +42,13 @@ export default function Profile() {
     onSuccess: () => {
       setShowEditDialog(false);
       toast.success("Profile updated successfully");
+      // Invalidate queries to refresh data
       trpc.useUtils().auth.me.invalidate();
       trpc.useUtils().auth.getTotalStats.invalidate();
+      // Refresh the page after a short delay to show updated data
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
     },
     onError: (error) => {
       console.error("Update error:", error);
@@ -80,14 +85,10 @@ export default function Profile() {
       return;
     }
 
-    try {
-      updateProfileMutation.mutate({
-        name: editName.trim(),
-        email: editEmail.trim() || undefined,
-      });
-    } catch (error) {
-      console.error("Error updating profile:", error);
-    }
+    updateProfileMutation.mutate({
+      name: editName.trim(),
+      email: editEmail.trim() || undefined,
+    });
   };
 
   const handleDeleteAccount = () => {
