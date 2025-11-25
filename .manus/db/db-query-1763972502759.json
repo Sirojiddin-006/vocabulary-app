@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE folders SET isGlobal = true WHERE createdBy IN (SELECT id FROM users WHERE role = 'admin');",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3vrk5cU7cuqCoxG.dcaa27486d9c --database kr33SWhdLnodEhwhBiTDVH --execute UPDATE folders SET isGlobal = true WHERE createdBy IN (SELECT id FROM users WHERE role = 'admin');",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1555
+}

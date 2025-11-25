@@ -104,7 +104,7 @@ export async function getFolders(userId: number) {
   // Get admin folders (global) and user's own folders
   return db.select().from(folders).where(
     or(
-      isNull(folders.createdBy),
+      eq(folders.isGlobal, true),
       eq(folders.createdBy, userId)
     )
   );
@@ -118,7 +118,7 @@ export async function getFolderById(folderId: number, userId: number) {
     and(
       eq(folders.id, folderId),
       or(
-        isNull(folders.createdBy),
+        eq(folders.isGlobal, true),
         eq(folders.createdBy, userId)
       )
     )
@@ -331,4 +331,25 @@ export async function getUserTotalStats(userId: number) {
     knownWords: knownCount,
     unknownWords: unknownCount,
   };
+}
+
+// Bulk word import
+export async function importWords(
+  folderId: number,
+  wordsData: Array<{ english: string; uzbek: string; example?: string }>,
+  createdBy: number | null
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const values = wordsData.map(word => ({
+    folderId,
+    english: word.english.trim(),
+    uzbek: word.uzbek.trim(),
+    example: word.example?.trim() || null,
+    createdBy,
+  }));
+  
+  const result = await db.insert(words).values(values);
+  return result;
 }

@@ -1,0 +1,9 @@
+{
+  "query": "SELECT id, name, createdBy, isGlobal FROM folders WHERE createdBy IS NULL;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3vrk5cU7cuqCoxG.dcaa27486d9c --database kr33SWhdLnodEhwhBiTDVH --execute SELECT id, name, createdBy, isGlobal FROM folders WHERE createdBy IS NULL;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1586
+}

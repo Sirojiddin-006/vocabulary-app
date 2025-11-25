@@ -83,6 +83,20 @@ export const appRouter = router({
         )
       ),
 
+    // Bulk import words
+    importWords: protectedProcedure
+      .input(z.object({
+        folderId: z.number(),
+        words: z.array(z.object({
+          english: z.string().min(1).max(255),
+          uzbek: z.string().min(1).max(255),
+          example: z.string().max(500).optional(),
+        })).min(1).max(100),
+      }))
+      .mutation(({ ctx, input }) =>
+        db.importWords(input.folderId, input.words, ctx.user.id)
+      ),
+
     // Get user progress for a folder
     getProgress: protectedProcedure
       .input(z.object({ folderId: z.number() }))

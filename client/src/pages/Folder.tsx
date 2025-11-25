@@ -16,6 +16,8 @@ export default function Folder() {
   const folderId = parseInt(params.id || "0");
 
   const [showAddWordDialog, setShowAddWordDialog] = useState(false);
+  const [showBulkImportDialog, setShowBulkImportDialog] = useState(false);
+  const [bulkImportText, setBulkImportText] = useState("");
   const [newWord, setNewWord] = useState({ english: "", uzbek: "", example: "" });
 
   // Fetch folder
@@ -38,6 +40,20 @@ export default function Folder() {
       trpc.useUtils().vocabulary.getWords.invalidate();
     },
   });
+  // Import bulk words mutation
+  const importWordsMutation = trpc.vocabulary.importWords.useMutation({
+    onSuccess: () => {
+      setBulkImportText("");
+      setShowBulkImportDialog(false);
+      toast.success("Words imported successfully");
+      trpc.useUtils().vocabulary.getWords.invalidate();
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to import words");
+    },
+  });
+
+
 
   if (folderLoading) {
     return (
@@ -128,14 +144,21 @@ export default function Folder() {
         )}
       </div>
 
-      {/* Bottom Action Button */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-[390px] mx-auto px-6 py-4 bg-[#0F1720] border-t border-[#15202B]">
+      {/* Bottom Action Buttons */}
+      <div className="fixed bottom-0 left-0 right-0 max-w-[390px] mx-auto px-6 py-4 bg-[#0F1720] border-t border-[#15202B] space-y-2">
         <Button
           onClick={() => setShowAddWordDialog(true)}
           className="w-full bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full"
         >
           <Plus className="w-4 h-4 mr-2" />
           Add Word
+        </Button>
+        <Button
+          onClick={() => setShowBulkImportDialog(true)}
+          className="w-full bg-[#8B5CF6] hover:bg-[#7c3aed] text-white rounded-full"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Bulk Import
         </Button>
       </div>
 
@@ -197,6 +220,64 @@ export default function Folder() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Import Dialog */}
+      <Dialog open={showBulkImportDialog} onOpenChange={setShowBulkImportDialog}>
+        <DialogContent className="bg-[#15202B] border-[#1a2732] text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle>Bulk Import Words</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm text-[#A6B0BE] mb-2 block">
+                Enter words (one per line, format: English | Uzbek | Example)
+              </label>
+              <Textarea
+                placeholder="beautiful | go'zal&#10;happy | baxtli&#10;sad | g'amgin"
+                value={bulkImportText}
+                onChange={(e) => setBulkImportText(e.target.value)}
+                className="bg-[#0F1720] border-[#1a2732] text-white placeholder-[#A6B0BE] resize-none"
+                rows={8}
+              />
+              <p className="text-xs text-[#A6B0BE] mt-2">
+                Separate English and Uzbek with | (pipe). Example is optional.
+              </p>
+            </div>
+            <Button
+              onClick={() => {
+                const lines = bulkImportText.trim().split('\n').filter(l => l.trim());
+                const words = lines.map(line => {
+                  const parts = line.split('|').map(p => p.trim());
+                  return {
+                    english: parts[0] || '',
+                    uzbek: parts[1] || '',
+                    example: parts[2] || undefined,
+                  };
+                }).filter(w => w.english && w.uzbek);
+
+                if (words.length === 0) {
+                  toast.error("Please enter at least one word");
+                  return;
+                }
+
+                importWordsMutation.mutate({
+                  folderId,
+                  words,
+                });
+              }}
+              disabled={!bulkImportText.trim() || importWordsMutation.isPending}
+              className="w-full bg-[#8B5CF6] hover:bg-[#7c3aed] text-white rounded-full"
+            >
+              {importWordsMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                "Import Words"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
