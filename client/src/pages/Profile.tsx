@@ -12,6 +12,7 @@ import { toast } from "sonner";
 export default function Profile() {
   const { user, logout, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
+  const utils = trpc.useUtils();
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [editName, setEditName] = useState("");
@@ -43,8 +44,8 @@ export default function Profile() {
       setShowEditDialog(false);
       toast.success("Profile updated successfully");
       // Invalidate queries to refresh data
-      trpc.useUtils().auth.me.invalidate();
-      trpc.useUtils().auth.getTotalStats.invalidate();
+      utils.auth.me.invalidate();
+      utils.auth.getTotalStats.invalidate();
       // Refresh the page after a short delay to show updated data
       setTimeout(() => {
         window.location.reload();
@@ -175,12 +176,16 @@ export default function Profile() {
         <Card className="bg-[#15202B] border-0 p-4 mb-4">
           <div className="space-y-3">
             <div>
+              <p className="text-[#A6B0BE] text-sm">Username</p>
+              <p className="text-white">{user?.openId || "Not provided"}</p>
+            </div>
+            <div>
               <p className="text-[#A6B0BE] text-sm">Email</p>
               <p className="text-white">{user?.email || "Not provided"}</p>
             </div>
             <div>
               <p className="text-[#A6B0BE] text-sm">Login Method</p>
-              <p className="text-white">{user?.loginMethod || "Manus OAuth"}</p>
+              <p className="text-white">Password</p>
             </div>
             <div>
               <p className="text-[#A6B0BE] text-sm">Member Since</p>

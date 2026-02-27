@@ -1,0 +1,160 @@
+{
+  "nextIds": {
+    "users": 4,
+    "folders": 6,
+    "words": 4,
+    "userProgress": 4
+  },
+  "users": [
+    {
+      "id": 1,
+      "openId": "user",
+      "name": "user",
+      "email": null,
+      "loginMethod": "password",
+      "passwordHash": "c91415199888d3986f4d01b2c55f3ada03a650357c653a819d94c74e65d1a4ecd3661865e92fc8ad0ddee748f24d26124fe7f41f1cf71d0df970e01637dbf348",
+      "passwordSalt": "9e62b81f5c4b8831a962f6d5727457a6",
+      "role": "user",
+      "createdAt": "2026-02-27T10:59:49.347Z",
+      "updatedAt": "2026-02-27T11:02:25.041Z",
+      "lastSignedIn": "2026-02-27T11:02:25.041Z"
+    },
+    {
+      "id": 2,
+      "openId": "demo@example.com",
+      "name": "user",
+      "email": "mail@mail.com",
+      "loginMethod": "password",
+      "passwordHash": "a96c56e4f6eacb5c62c77e4927b0c9e6fe31efb4bc3e5c6f456a7d9f30f15bb3b6d3746f6d3e453322eb8d9fc7dc82fc2f9a60efcb80c26c7f5f2930e0a8041c",
+      "passwordSalt": "d2351fe21e3fc7a4620049dca2cf83cf",
+      "role": "user",
+      "createdAt": "2026-02-27T11:01:18.138Z",
+      "updatedAt": "2026-02-27T11:01:18.138Z",
+      "lastSignedIn": "2026-02-27T11:01:18.138Z"
+    },
+    {
+      "id": 3,
+      "openId": "name",
+      "name": "name1",
+      "email": "name@gmail.com",
+      "loginMethod": "password",
+      "passwordHash": "0d4e7cc638d89ff7eb3b5732781612e48791cb69b9ee00c64f5c867e9357258358540358a02906c0238dedcf313aa58a3e51f08d4be789d5b04dbc757e34b37c",
+      "passwordSalt": "0309ccc29dc8ee4dbe3bd4a8a08a8631",
+      "role": "user",
+      "createdAt": "2026-02-27T11:03:26.512Z",
+      "updatedAt": "2026-02-27T11:03:36.075Z",
+      "lastSignedIn": "2026-02-27T11:03:26.512Z"
+    }
+  ],
+  "folders": [
+    {
+      "id": 1,
+      "name": "words",
+      "description": null,
+      "createdBy": 1,
+      "isGlobal": false,
+      "createdAt": "2026-02-27T11:02:42.155Z",
+      "updatedAt": "2026-02-27T11:02:42.155Z"
+    },
+    {
+      "id": 2,
+      "name": "words",
+      "description": null,
+      "createdBy": 1,
+      "isGlobal": false,
+      "createdAt": "2026-02-27T11:02:48.356Z",
+      "updatedAt": "2026-02-27T11:02:48.356Z"
+    },
+    {
+      "id": 3,
+      "name": "wrds",
+      "description": null,
+      "createdBy": 1,
+      "isGlobal": false,
+      "createdAt": "2026-02-27T11:02:53.188Z",
+      "updatedAt": "2026-02-27T11:02:53.188Z"
+    },
+    {
+      "id": 4,
+      "name": "yangi",
+      "description": null,
+      "createdBy": 3,
+      "isGlobal": false,
+      "createdAt": "2026-02-27T11:11:23.296Z",
+      "updatedAt": "2026-02-27T11:11:23.296Z"
+    },
+    {
+      "id": 5,
+      "name": "asaefe",
+      "description": null,
+      "createdBy": 3,
+      "isGlobal": false,
+      "createdAt": "2026-02-27T11:13:06.743Z",
+      "updatedAt": "2026-02-27T11:13:06.743Z"
+    }
+  ],
+  "words": [
+    {
+      "id": 1,
+      "folderId": 4,
+      "english": "book",
+      "uzbek": "kitob",
+      "example": "This is a huge book\n",
+      "createdBy": 3,
+      "createdAt": "2026-02-27T11:12:05.082Z",
+      "updatedAt": "2026-02-27T11:12:05.082Z"
+    },
+    {
+      "id": 2,
+      "folderId": 4,
+      "english": "happy",
+      "uzbek": "hursand",
+      "example": null,
+      "createdBy": 3,
+      "createdAt": "2026-02-27T11:12:37.784Z",
+      "updatedAt": "2026-02-27T11:12:37.784Z"
+    },
+    {
+      "id": 3,
+      "folderId": 4,
+      "english": "help",
+      "uzbek": "yordam",
+      "example": null,
+      "createdBy": 3,
+      "createdAt": "2026-02-27T11:12:37.784Z",
+      "updatedAt": "2026-02-27T11:12:37.784Z"
+    }
+  ],
+  "userProgress": [
+    {
+      "id": 1,
+      "userId": 3,
+      "wordId": 1,
+      "known": false,
+      "reviewCount": 5,
+      "lastReviewedAt": "2026-02-27T11:12:56.181Z",
+      "createdAt": "2026-02-27T11:12:08.437Z",
+      "updatedAt": "2026-02-27T11:12:56.181Z"
+    },
+    {
+      "id": 2,
+      "userId": 3,
+      "wordId": 2,
+      "known": false,
+      "reviewCount": 3,
+      "lastReviewedAt": "2026-02-27T11:12:52.769Z",
+      "createdAt": "2026-02-27T11:12:44.107Z",
+      "updatedAt": "2026-02-27T11:12:52.769Z"
+    },
+    {
+      "id": 3,
+      "userId": 3,
+      "wordId": 3,
+      "known": true,
+      "reviewCount": 2,
+      "lastReviewedAt": "2026-02-27T11:12:49.812Z",
+      "createdAt": "2026-02-27T11:12:45.081Z",
+      "updatedAt": "2026-02-27T11:12:49.812Z"
+    }
+  ]
+}

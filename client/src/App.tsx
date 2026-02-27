@@ -8,6 +8,8 @@ import Home from "./pages/Home";
 import Folder from "./pages/Folder";
 import Memorize from "./pages/Memorize";
 import Profile from "./pages/Profile";
+import SignIn from "./pages/SignIn";
+import SignUp from "./pages/SignUp";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -17,6 +19,8 @@ function Router() {
       <Route path={"/folder/:id"} component={Folder} />
       <Route path={"/memorize/:id"} component={Memorize} />
       <Route path={"/profile"} component={Profile} />
+      <Route path={"/signin"} component={SignIn} />
+      <Route path={"/signup"} component={SignUp} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

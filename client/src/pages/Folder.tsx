@@ -15,6 +15,7 @@ export default function Folder() {
   const [, setLocation] = useLocation();
   const params = useParams();
   const folderId = parseInt(params.id || "0");
+  const utils = trpc.useUtils();
 
   const [showAddWordDialog, setShowAddWordDialog] = useState(false);
   const [showBulkImportDialog, setShowBulkImportDialog] = useState(false);
@@ -38,7 +39,10 @@ export default function Folder() {
     onSuccess: () => {
       setNewWord({ english: "", uzbek: "", example: "" });
       setShowAddWordDialog(false);
-      trpc.useUtils().vocabulary.getWords.invalidate();
+      utils.vocabulary.getWords.invalidate({ folderId });
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to add word");
     },
   });
   // Import bulk words mutation
@@ -47,7 +51,7 @@ export default function Folder() {
       setBulkImportText("");
       setShowBulkImportDialog(false);
       toast.success("Words imported successfully");
-      trpc.useUtils().vocabulary.getWords.invalidate();
+      utils.vocabulary.getWords.invalidate({ folderId });
     },
     onError: (error) => {
       toast.error(error.message || "Failed to import words");

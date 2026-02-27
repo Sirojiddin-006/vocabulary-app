@@ -4,14 +4,16 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Loader2, Plus, BookOpen, LogOut, User } from "lucide-react";
-import { APP_LOGO, APP_TITLE, getLoginUrl } from "@/const";
+import { APP_TITLE, AUTH_SIGNIN_PATH, AUTH_SIGNUP_PATH } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { toast } from "sonner";
 
 export default function Home() {
   const { user, loading, isAuthenticated, logout } = useAuth();
   const [, setLocation] = useLocation();
+  const utils = trpc.useUtils();
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
 
@@ -33,8 +35,11 @@ export default function Home() {
       setNewFolderName("");
       setShowNewFolderDialog(false);
       // Invalidate folders query to refresh
-      trpc.useUtils().vocabulary.getFolders.invalidate();
-      trpc.useUtils().auth.getTotalStats.invalidate();
+      utils.vocabulary.getFolders.invalidate();
+      utils.auth.getTotalStats.invalidate();
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to create folder");
     },
   });
 
@@ -60,12 +65,21 @@ export default function Home() {
           <p className="text-[#A6B0BE] mb-8">
             Learn English vocabulary with interactive flashcards. Master new words at your own pace.
           </p>
-          <Button
-            onClick={() => (window.location.href = getLoginUrl())}
-            className="w-full bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white py-3 rounded-full font-semibold"
-          >
-            Sign In with Manus
-          </Button>
+          <div className="flex flex-col gap-3">
+            <Button
+              onClick={() => setLocation(AUTH_SIGNIN_PATH)}
+              className="w-full bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white py-3 rounded-full font-semibold"
+            >
+              Sign In
+            </Button>
+            <Button
+              onClick={() => setLocation(AUTH_SIGNUP_PATH)}
+              variant="outline"
+              className="w-full border-[#0EA5FF] text-[#0EA5FF] hover:bg-[#0EA5FF]/10 py-3 rounded-full font-semibold"
+            >
+              Create Account
+            </Button>
+          </div>
         </div>
       </div>
     );
