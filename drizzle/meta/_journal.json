@@ -15,6 +15,20 @@
       "when": 1763295133602,
       "tag": "0001_large_victor_mancha",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1772194224077,
+      "tag": "0002_numerous_loa",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1772221000000,
+      "tag": "0003_essential_books",
+      "breakpoints": true
     }
   ]
 }

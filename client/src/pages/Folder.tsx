@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Plus, ChevronLeft, Play } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocation, useParams } from "wouter";
 
 export default function Folder() {
@@ -20,7 +20,14 @@ export default function Folder() {
   const [showAddWordDialog, setShowAddWordDialog] = useState(false);
   const [showBulkImportDialog, setShowBulkImportDialog] = useState(false);
   const [bulkImportText, setBulkImportText] = useState("");
-  const [newWord, setNewWord] = useState({ english: "", uzbek: "", example: "" });
+  const [newWord, setNewWord] = useState({
+    english: "",
+    uzbek: "",
+    description: "",
+    example: "",
+  });
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<"az" | "za">("az");
 
   // Fetch folder
   const { data: folder, isLoading: folderLoading } = trpc.vocabulary.getFolderById.useQuery(
@@ -34,10 +41,27 @@ export default function Folder() {
     { enabled: isAuthenticated && folderId > 0 }
   );
 
+  const filteredWords = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    const filtered = normalized.length === 0
+      ? words
+      : words.filter(word =>
+          word.english.toLowerCase().includes(normalized) ||
+          word.uzbek.toLowerCase().includes(normalized) ||
+          (word.description ?? "").toLowerCase().includes(normalized) ||
+          (word.example ?? "").toLowerCase().includes(normalized)
+        );
+    const sorted = [...filtered].sort((a, b) => {
+      if (sort === "az") return a.english.localeCompare(b.english);
+      return b.english.localeCompare(a.english);
+    });
+    return sorted;
+  }, [query, sort, words]);
+
   // Add word mutation
   const addWordMutation = trpc.vocabulary.addWord.useMutation({
     onSuccess: () => {
-      setNewWord({ english: "", uzbek: "", example: "" });
+      setNewWord({ english: "", uzbek: "", description: "", example: "" });
       setShowAddWordDialog(false);
       utils.vocabulary.getWords.invalidate({ folderId });
     },
@@ -62,7 +86,7 @@ export default function Folder() {
 
   if (folderLoading) {
     return (
-      <div className="min-h-screen bg-[#0F1720] flex items-center justify-center">
+      <div className="min-h-screen w-full app-bg flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-[#0EA5FF]" />
       </div>
     );
@@ -70,7 +94,7 @@ export default function Folder() {
 
   if (!folder) {
     return (
-      <div className="min-h-screen bg-[#0F1720] text-white flex flex-col items-center justify-center">
+      <div className="min-h-screen w-full app-bg text-white flex flex-col items-center justify-center">
         <p className="text-[#A6B0BE] mb-4">Folder not found</p>
         <Button
           onClick={() => setLocation("/")}
@@ -83,22 +107,26 @@ export default function Folder() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0F1720] text-white flex flex-col max-w-[390px] mx-auto">
+    <div className="min-h-screen w-full app-bg text-white flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 pt-4 pb-3 border-b border-[#15202B]">
-        <button
-          onClick={() => setLocation("/")}
-          className="p-2 -ml-2 hover:bg-[#15202B] rounded-lg transition-colors"
-        >
-          <ChevronLeft className="w-6 h-6 text-white" />
-        </button>
-        <h1 className="text-xl font-bold">{folder.name}</h1>
-        <div className="w-6" />
+      <div className="border-b border-white/10 bg-[#0B0E14]/70 backdrop-blur sticky top-0 z-40">
+        <div className="mx-auto w-full max-w-6xl px-6">
+          <div className="flex items-center justify-between py-4">
+            <button
+              onClick={() => setLocation("/")}
+              className="p-2 -ml-2 hover:bg-white/5 rounded-lg transition-colors"
+            >
+              <ChevronLeft className="w-6 h-6 text-white" />
+            </button>
+            <h1 className="font-display text-xl font-semibold">{folder.name}</h1>
+            <div className="w-6" />
+          </div>
+        </div>
       </div>
 
       {/* Folder Info */}
-      <div className="px-6 py-4 border-b border-[#15202B]">
-        <div className="flex items-center justify-between">
+      <div className="mx-auto w-full max-w-6xl px-6 py-5">
+        <div className="rounded-2xl border border-white/10 bg-[#111827] px-6 py-4 flex items-center justify-between">
           <span className="text-[#A6B0BE]">{words.length} words</span>
           <Button
             onClick={() => setLocation(`/memorize/${folderId}`)}
@@ -111,14 +139,45 @@ export default function Folder() {
       </div>
 
       {/* Words List */}
-      <div className="flex-1 overflow-y-auto px-6 py-4 pb-24">
+      <div className="mx-auto w-full max-w-6xl px-6 pb-2">
+        <div className="flex flex-col md:flex-row gap-3">
+          <Input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search words..."
+            className="bg-[#0B0E14] border-white/10 text-white placeholder-[#A6B0BE]"
+          />
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setSort("az")}
+              variant="outline"
+              className={sort === "az"
+                ? "border-[#0EA5FF] text-[#0EA5FF] bg-[#0EA5FF]/10"
+                : "border-white/10 text-white hover:bg-white/5"}
+            >
+              A - Z
+            </Button>
+            <Button
+              onClick={() => setSort("za")}
+              variant="outline"
+              className={sort === "za"
+                ? "border-[#0EA5FF] text-[#0EA5FF] bg-[#0EA5FF]/10"
+                : "border-white/10 text-white hover:bg-white/5"}
+            >
+              Z - A
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 mx-auto w-full max-w-6xl px-6 py-4 pb-28">
         {wordsLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-[#0EA5FF]" />
           </div>
-        ) : words.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-[#A6B0BE] mb-4">No words yet. Add one to get started!</p>
+        ) : filteredWords.length === 0 ? (
+          <div className="text-center py-12 rounded-2xl border border-white/10 bg-[#0F1720]">
+            <p className="text-[#A6B0BE] mb-4">No words found.</p>
             <Button
               onClick={() => setShowAddWordDialog(true)}
               className="bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full"
@@ -128,16 +187,19 @@ export default function Folder() {
             </Button>
           </div>
         ) : (
-          <div className="space-y-3">
-            {words.map((word) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredWords.map((word) => (
               <Card
                 key={word.id}
-                className="bg-[#15202B] border-0 p-4"
+                className="bg-[#111827] border border-white/10 p-5 card-hover-glow"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <h3 className="text-white font-semibold">{word.english}</h3>
                     <p className="text-[#A6B0BE] text-sm">{word.uzbek}</p>
+                    {word.description && (
+                      <p className="text-[#C9D3E0] text-xs mt-2">{word.description}</p>
+                    )}
                     {word.example && (
                       <p className="text-[#A6B0BE] text-xs mt-2 italic">"{word.example}"</p>
                     )}
@@ -150,21 +212,23 @@ export default function Folder() {
       </div>
 
       {/* Bottom Action Buttons */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-[390px] mx-auto px-6 py-4 bg-[#0F1720] border-t border-[#15202B] space-y-2">
-        <Button
-          onClick={() => setShowAddWordDialog(true)}
-          className="w-full bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Word
-        </Button>
-        <Button
-          onClick={() => setShowBulkImportDialog(true)}
-          className="w-full bg-[#8B5CF6] hover:bg-[#7c3aed] text-white rounded-full"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Bulk Import
-        </Button>
+      <div className="fixed bottom-0 left-0 right-0 bg-[#0B0E14]/70 backdrop-blur border-t border-white/10">
+        <div className="mx-auto w-full max-w-6xl px-6 py-4 space-y-2">
+          <Button
+            onClick={() => setShowAddWordDialog(true)}
+            className="w-full bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Word
+          </Button>
+          <Button
+            onClick={() => setShowBulkImportDialog(true)}
+            className="w-full bg-[#8B5CF6] hover:bg-[#7c3aed] text-white rounded-full"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Bulk Import
+          </Button>
+        </div>
       </div>
 
       {/* Add Word Dialog */}
@@ -193,6 +257,16 @@ export default function Folder() {
               />
             </div>
             <div>
+              <label className="text-sm text-[#A6B0BE] mb-2 block">Description (Optional)</label>
+              <Textarea
+                placeholder="e.g., Used to describe something pleasant to look at."
+                value={newWord.description}
+                onChange={(e) => setNewWord({ ...newWord, description: e.target.value })}
+                className="bg-[#0F1720] border-[#1a2732] text-white placeholder-[#A6B0BE] resize-none"
+                rows={2}
+              />
+            </div>
+            <div>
               <label className="text-sm text-[#A6B0BE] mb-2 block">Example (Optional)</label>
               <Textarea
                 placeholder="e.g., She has a beautiful smile."
@@ -209,6 +283,7 @@ export default function Folder() {
                     folderId,
                     english: newWord.english,
                     uzbek: newWord.uzbek,
+                    description: newWord.description || null,
                     example: newWord.example || null,
                   });
                 }
@@ -235,17 +310,17 @@ export default function Folder() {
           <div className="space-y-4">
             <div>
               <label className="text-sm text-[#A6B0BE] mb-2 block">
-                Enter words (one per line, format: English | Uzbek | Example)
+                Enter words (one per line, format: English | Uzbek | Description | Example)
               </label>
               <Textarea
-                placeholder="beautiful | go'zal&#10;happy | baxtli&#10;sad | g'amgin"
+                placeholder="beautiful | go'zal | pleasant to look at | She has a beautiful smile."
                 value={bulkImportText}
                 onChange={(e) => setBulkImportText(e.target.value)}
                 className="bg-[#0F1720] border-[#1a2732] text-white placeholder-[#A6B0BE] resize-none"
                 rows={8}
               />
               <p className="text-xs text-[#A6B0BE] mt-2">
-                Separate English and Uzbek with | (pipe). Example is optional.
+                Separate values with | (pipe). Description and Example are optional.
               </p>
             </div>
             <Button
@@ -256,7 +331,8 @@ export default function Folder() {
                   return {
                     english: parts[0] || '',
                     uzbek: parts[1] || '',
-                    example: parts[2] || undefined,
+                    description: parts[2] || undefined,
+                    example: parts[3] || undefined,
                   };
                 }).filter(w => w.english && w.uzbek);
 

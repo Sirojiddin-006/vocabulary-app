@@ -132,6 +132,10 @@ export const appRouter = router({
       .query(({ ctx }) =>
         db.getUserTotalStats(ctx.user.id)
       ),
+    getGlobalStats: protectedProcedure
+      .query(({ ctx }) =>
+        db.getGlobalTotalStats(ctx.user.id)
+      ),
   }),
 
   vocabulary: router({
@@ -139,12 +143,30 @@ export const appRouter = router({
     getFolders: protectedProcedure.query(({ ctx }) =>
       db.getFolders(ctx.user.id)
     ),
+    // Global section: all folders across users
+    getGlobalFolders: protectedProcedure.query(() =>
+      db.getAllFolders()
+    ),
+    // Global section with word counts for display
+    getGlobalFoldersWithCounts: protectedProcedure.query(() =>
+      db.getAllFoldersWithWordCounts()
+    ),
+    // Global books
+    getGlobalBooks: protectedProcedure.query(() =>
+      db.getGlobalBooks()
+    ),
 
     // Get a specific folder by ID
     getFolderById: protectedProcedure
       .input(z.object({ folderId: z.number() }))
       .query(({ ctx, input }) =>
         db.getFolderById(input.folderId, ctx.user.id)
+      ),
+    // Global section: get folder by ID (no ownership filter)
+    getGlobalFolderById: protectedProcedure
+      .input(z.object({ folderId: z.number() }))
+      .query(({ input }) =>
+        db.getGlobalFolderById(input.folderId)
       ),
 
     // Create a new folder
@@ -163,6 +185,12 @@ export const appRouter = router({
       .query(({ ctx, input }) =>
         db.getWordsByFolderId(input.folderId, ctx.user.id)
       ),
+    // Global section: get words for any folder
+    getGlobalWords: protectedProcedure
+      .input(z.object({ folderId: z.number() }))
+      .query(({ input }) =>
+        db.getGlobalWordsByFolderId(input.folderId)
+      ),
 
     // Add a new word to a folder
     addWord: protectedProcedure
@@ -170,6 +198,7 @@ export const appRouter = router({
         folderId: z.number(),
         english: z.string().min(1).max(255),
         uzbek: z.string().min(1).max(255),
+        description: z.string().max(1000).nullable().optional(),
         example: z.string().max(500).nullable().optional(),
       }))
       .mutation(({ ctx, input }) =>
@@ -177,6 +206,7 @@ export const appRouter = router({
           input.folderId,
           input.english,
           input.uzbek,
+          input.description || null,
           input.example || null,
           ctx.user.id
         )
@@ -189,6 +219,7 @@ export const appRouter = router({
         words: z.array(z.object({
           english: z.string().min(1).max(255),
           uzbek: z.string().min(1).max(255),
+          description: z.string().max(1000).optional(),
           example: z.string().max(500).optional(),
         })).min(1).max(100),
       }))

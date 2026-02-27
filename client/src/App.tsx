@@ -10,6 +10,8 @@ import Memorize from "./pages/Memorize";
 import Profile from "./pages/Profile";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
+import Global from "./pages/Global";
+import GlobalMemorize from "./pages/GlobalMemorize";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -21,6 +23,8 @@ function Router() {
       <Route path={"/profile"} component={Profile} />
       <Route path={"/signin"} component={SignIn} />
       <Route path={"/signup"} component={SignUp} />
+      <Route path={"/global"} component={Global} />
+      <Route path={"/global/memorize/:id"} component={GlobalMemorize} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

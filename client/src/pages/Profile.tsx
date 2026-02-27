@@ -31,6 +31,10 @@ export default function Profile() {
     undefined,
     { enabled: isAuthenticated }
   );
+  const { data: globalStats } = trpc.auth.getGlobalStats.useQuery(
+    undefined,
+    { enabled: isAuthenticated }
+  );
 
   // Fetch folders to calculate folder count
   const { data: folders = [] } = trpc.vocabulary.getFolders.useQuery(
@@ -74,6 +78,9 @@ export default function Profile() {
   const totalWords = totalStats?.totalWords || 0;
   const knownWords = totalStats?.knownWords || 0;
   const unknownWords = totalStats?.unknownWords || 0;
+  const globalTotalWords = globalStats?.totalWords || 0;
+  const globalKnownWords = globalStats?.knownWords || 0;
+  const globalUnknownWords = globalStats?.unknownWords || 0;
 
   const handleLogout = async () => {
     await logout();
@@ -97,24 +104,28 @@ export default function Profile() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0F1720] text-white flex flex-col max-w-[390px] mx-auto">
+    <div className="min-h-screen w-full app-bg text-white flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 pt-4 pb-3 border-b border-[#15202B]">
-        <button
-          onClick={() => setLocation("/")}
-          className="p-2 -ml-2 hover:bg-[#15202B] rounded-lg transition-colors"
-        >
-          <ChevronLeft className="w-6 h-6 text-white" />
-        </button>
-        <h1 className="text-xl font-bold">Profile</h1>
-        <div className="w-6" />
+      <div className="border-b border-white/10 bg-[#0B0E14]/70 backdrop-blur sticky top-0 z-40">
+        <div className="mx-auto w-full max-w-6xl px-6">
+          <div className="flex items-center justify-between py-4">
+            <button
+              onClick={() => setLocation("/")}
+              className="p-2 -ml-2 hover:bg-white/5 rounded-lg transition-colors"
+            >
+              <ChevronLeft className="w-6 h-6 text-white" />
+            </button>
+            <h1 className="font-display text-xl font-semibold">Profile</h1>
+            <div className="w-6" />
+          </div>
+        </div>
       </div>
 
       {/* Profile Section */}
-      <div className="px-6 py-6">
-        <div className="flex items-center justify-between mb-6">
+      <div className="mx-auto w-full max-w-6xl px-6 py-8">
+        <div className="rounded-2xl border border-white/10 bg-[#111827] px-6 py-6 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-[#0EA5FF] rounded-full flex items-center justify-center">
+            <div className="w-16 h-16 bg-[#0EA5FF] rounded-2xl flex items-center justify-center">
               <User className="w-8 h-8 text-white" />
             </div>
             <div>
@@ -122,21 +133,21 @@ export default function Profile() {
               <p className="text-[#A6B0BE]">{user?.email || "No email"}</p>
             </div>
           </div>
-          <button
+          <Button
             onClick={() => setShowEditDialog(true)}
-            className="p-2 hover:bg-[#15202B] rounded-lg transition-colors"
-            title="Edit profile"
+            className="bg-white/10 hover:bg-white/15 text-white rounded-full"
           >
-            <Edit2 className="w-5 h-5 text-[#0EA5FF]" />
-          </button>
+            <Edit2 className="w-4 h-4 mr-2" />
+            Edit
+          </Button>
         </div>
       </div>
 
       {/* Statistics Section */}
-      <div className="px-6 py-4">
+      <div className="mx-auto w-full max-w-6xl px-6 py-4">
         <h3 className="text-lg font-semibold text-white mb-4">Learning Statistics</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <Card className="bg-[#15202B] border-0 p-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card className="bg-[#111827] border border-white/10 p-4">
             <div className="flex items-center gap-2 mb-2">
               <BookOpen className="w-5 h-5 text-[#0EA5FF]" />
               <span className="text-[#A6B0BE] text-sm">Folders</span>
@@ -144,7 +155,7 @@ export default function Profile() {
             <p className="text-3xl font-bold text-white">{totalFolders}</p>
           </Card>
 
-          <Card className="bg-[#15202B] border-0 p-4">
+          <Card className="bg-[#111827] border border-white/10 p-4">
             <div className="flex items-center gap-2 mb-2">
               <TrendingUp className="w-5 h-5 text-[#10B981]" />
               <span className="text-[#A6B0BE] text-sm">Known</span>
@@ -152,7 +163,7 @@ export default function Profile() {
             <p className="text-3xl font-bold text-white">{knownWords}</p>
           </Card>
 
-          <Card className="bg-[#15202B] border-0 p-4">
+          <Card className="bg-[#111827] border border-white/10 p-4">
             <div className="flex items-center gap-2 mb-2">
               <BookOpen className="w-5 h-5 text-[#0EA5FF]" />
               <span className="text-[#A6B0BE] text-sm">Unknown</span>
@@ -160,7 +171,7 @@ export default function Profile() {
             <p className="text-3xl font-bold text-white">{unknownWords}</p>
           </Card>
 
-          <Card className="bg-[#15202B] border-0 p-4">
+          <Card className="bg-[#111827] border border-white/10 p-4">
             <div className="flex items-center gap-2 mb-2">
               <BookOpen className="w-5 h-5 text-[#A6B0BE]" />
               <span className="text-[#A6B0BE] text-sm">Total</span>
@@ -171,9 +182,9 @@ export default function Profile() {
       </div>
 
       {/* Account Section */}
-      <div className="px-6 py-4 flex-1">
+      <div className="mx-auto w-full max-w-6xl px-6 py-4 flex-1">
         <h3 className="text-lg font-semibold text-white mb-4">Account</h3>
-        <Card className="bg-[#15202B] border-0 p-4 mb-4">
+        <Card className="bg-[#111827] border border-white/10 p-4 mb-6">
           <div className="space-y-3">
             <div>
               <p className="text-[#A6B0BE] text-sm">Username</p>
@@ -197,24 +208,53 @@ export default function Profile() {
             </div>
           </div>
         </Card>
+
+        <h3 className="text-lg font-semibold text-white mb-4">Global Progress</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <Card className="bg-[#111827] border border-white/10 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <BookOpen className="w-5 h-5 text-[#0EA5FF]" />
+              <span className="text-[#A6B0BE] text-sm">Total</span>
+            </div>
+            <p className="text-3xl font-bold text-white">{globalTotalWords}</p>
+          </Card>
+
+          <Card className="bg-[#111827] border border-white/10 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <TrendingUp className="w-5 h-5 text-[#10B981]" />
+              <span className="text-[#A6B0BE] text-sm">Known</span>
+            </div>
+            <p className="text-3xl font-bold text-white">{globalKnownWords}</p>
+          </Card>
+
+          <Card className="bg-[#111827] border border-white/10 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <BookOpen className="w-5 h-5 text-[#0EA5FF]" />
+              <span className="text-[#A6B0BE] text-sm">Unknown</span>
+            </div>
+            <p className="text-3xl font-bold text-white">{globalUnknownWords}</p>
+          </Card>
+        </div>
       </div>
 
       {/* Action Buttons */}
-      <div className="px-6 py-4 border-t border-[#15202B] space-y-3">
-        <Button
-          onClick={handleLogout}
-          className="w-full bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full flex items-center justify-center gap-2"
-        >
-          <LogOut className="w-4 h-4" />
-          Logout
-        </Button>
-        <Button
-          onClick={() => setShowDeleteDialog(true)}
-          className="w-full bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center gap-2"
-        >
-          <Trash2 className="w-4 h-4" />
-          Delete Account
-        </Button>
+      <div className="border-t border-white/10 bg-[#0B0E14]/70 backdrop-blur">
+        <div className="mx-auto w-full max-w-6xl px-6 py-4 space-y-3">
+          <Button
+            onClick={handleLogout}
+            className="w-full bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full flex items-center justify-center gap-2"
+          >
+            <LogOut className="w-4 h-4" />
+            Logout
+          </Button>
+          <Button
+            onClick={() => setShowDeleteDialog(true)}
+            className="w-full bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center gap-2"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete Account
+          </Button>
+        </div>
       </div>
 
       {/* Edit Profile Dialog */}

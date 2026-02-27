@@ -37,6 +37,8 @@ export const folders = mysqlTable("folders", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
+  bookId: int("bookId"),
+  unitNumber: int("unitNumber"),
   createdBy: int("createdBy"), // null means admin-created (global)
   isGlobal: boolean("isGlobal").default(false).notNull(), // true for admin folders
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -56,6 +58,7 @@ export const words = mysqlTable("words", {
   folderId: int("folderId").notNull(),
   english: varchar("english", { length: 255 }).notNull(),
   uzbek: varchar("uzbek", { length: 255 }).notNull(),
+  description: text("description"),
   example: text("example"),
   createdBy: int("createdBy"), // null means admin-created (global)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -82,14 +85,35 @@ export const userProgress = mysqlTable("userProgress", {
 export type UserProgress = typeof userProgress.$inferSelect;
 export type InsertUserProgress = typeof userProgress.$inferInsert;
 
+/**
+ * Books table groups global folders into a single book with units.
+ */
+export const books = mysqlTable("books", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  createdBy: int("createdBy"),
+  isGlobal: boolean("isGlobal").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Book = typeof books.$inferSelect;
+export type InsertBook = typeof books.$inferInsert;
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
+  books: many(books),
   folders: many(folders),
   words: many(words),
   progress: many(userProgress),
 }));
 
 export const foldersRelations = relations(folders, ({ one, many }) => ({
+  book: one(books, {
+    fields: [folders.bookId],
+    references: [books.id],
+  }),
   creator: one(users, {
     fields: [folders.createdBy],
     references: [users.id],
@@ -118,4 +142,12 @@ export const userProgressRelations = relations(userProgress, ({ one }) => ({
     fields: [userProgress.wordId],
     references: [words.id],
   }),
+}));
+
+export const booksRelations = relations(books, ({ one, many }) => ({
+  creator: one(users, {
+    fields: [books.createdBy],
+    references: [users.id],
+  }),
+  folders: many(folders),
 }));

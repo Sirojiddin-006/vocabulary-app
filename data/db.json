@@ -1,9 +1,9 @@
 {
   "nextIds": {
     "users": 4,
-    "folders": 6,
-    "words": 4,
-    "userProgress": 4
+    "folders": 11,
+    "words": 108,
+    "userProgress": 12
   },
   "users": [
     {
@@ -16,8 +16,8 @@
       "passwordSalt": "9e62b81f5c4b8831a962f6d5727457a6",
       "role": "user",
       "createdAt": "2026-02-27T10:59:49.347Z",
-      "updatedAt": "2026-02-27T11:02:25.041Z",
-      "lastSignedIn": "2026-02-27T11:02:25.041Z"
+      "updatedAt": "2026-02-27T11:38:46.478Z",
+      "lastSignedIn": "2026-02-27T11:38:46.478Z"
     },
     {
       "id": 2,
@@ -91,6 +91,51 @@
       "isGlobal": false,
       "createdAt": "2026-02-27T11:13:06.743Z",
       "updatedAt": "2026-02-27T11:13:06.743Z"
+    },
+    {
+      "id": 6,
+      "name": "Food & Drinks",
+      "description": "Common food and beverage vocabulary",
+      "createdBy": null,
+      "isGlobal": true,
+      "createdAt": "2026-02-27T11:49:30.180Z",
+      "updatedAt": "2026-02-27T11:49:30.180Z"
+    },
+    {
+      "id": 7,
+      "name": "Travel",
+      "description": "Travel and transportation basics",
+      "createdBy": null,
+      "isGlobal": true,
+      "createdAt": "2026-02-27T11:49:30.183Z",
+      "updatedAt": "2026-02-27T11:49:30.183Z"
+    },
+    {
+      "id": 8,
+      "name": "Technology",
+      "description": "Everyday tech words",
+      "createdBy": null,
+      "isGlobal": true,
+      "createdAt": "2026-02-27T11:49:30.185Z",
+      "updatedAt": "2026-02-27T11:49:30.185Z"
+    },
+    {
+      "id": 9,
+      "name": "Health",
+      "description": "Health and body vocabulary",
+      "createdBy": null,
+      "isGlobal": true,
+      "createdAt": "2026-02-27T11:49:30.188Z",
+      "updatedAt": "2026-02-27T11:49:30.188Z"
+    },
+    {
+      "id": 10,
+      "name": "Business",
+      "description": "Work and business basics",
+      "createdBy": null,
+      "isGlobal": true,
+      "createdAt": "2026-02-27T11:49:30.191Z",
+      "updatedAt": "2026-02-27T11:49:30.191Z"
     }
   ],
   "words": [
@@ -123,6 +168,1046 @@
       "createdBy": 3,
       "createdAt": "2026-02-27T11:12:37.784Z",
       "updatedAt": "2026-02-27T11:12:37.784Z"
+    },
+    {
+      "id": 4,
+      "folderId": 1,
+      "english": "apple",
+      "uzbek": "olma",
+      "example": null,
+      "createdBy": 1,
+      "createdAt": "2026-02-27T11:39:33.716Z",
+      "updatedAt": "2026-02-27T11:39:33.716Z"
+    },
+    {
+      "id": 5,
+      "folderId": 1,
+      "english": "bread",
+      "uzbek": "non",
+      "example": null,
+      "createdBy": 1,
+      "createdAt": "2026-02-27T11:39:33.716Z",
+      "updatedAt": "2026-02-27T11:39:33.716Z"
+    },
+    {
+      "id": 6,
+      "folderId": 1,
+      "english": "red",
+      "uzbek": "qizil",
+      "example": null,
+      "createdBy": 1,
+      "createdAt": "2026-02-27T11:39:33.716Z",
+      "updatedAt": "2026-02-27T11:39:33.716Z"
+    },
+    {
+      "id": 7,
+      "folderId": 1,
+      "english": "book",
+      "uzbek": "kitob",
+      "example": null,
+      "createdBy": 1,
+      "createdAt": "2026-02-27T11:39:33.716Z",
+      "updatedAt": "2026-02-27T11:39:33.716Z"
+    },
+    {
+      "id": 8,
+      "folderId": 6,
+      "english": "apple",
+      "uzbek": "olma",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.182Z",
+      "updatedAt": "2026-02-27T11:49:30.182Z"
+    },
+    {
+      "id": 9,
+      "folderId": 6,
+      "english": "bread",
+      "uzbek": "non",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.182Z",
+      "updatedAt": "2026-02-27T11:49:30.182Z"
+    },
+    {
+      "id": 10,
+      "folderId": 6,
+      "english": "cheese",
+      "uzbek": "pishloq",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.182Z",
+      "updatedAt": "2026-02-27T11:49:30.182Z"
+    },
+    {
+      "id": 11,
+      "folderId": 6,
+      "english": "rice",
+      "uzbek": "guruch",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.182Z",
+      "updatedAt": "2026-02-27T11:49:30.182Z"
+    },
+    {
+      "id": 12,
+      "folderId": 6,
+      "english": "meat",
+      "uzbek": "go'sht",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.182Z",
+      "updatedAt": "2026-02-27T11:49:30.182Z"
+    },
+    {
+      "id": 13,
+      "folderId": 6,
+      "english": "fish",
+      "uzbek": "baliq",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.182Z",
+      "updatedAt": "2026-02-27T11:49:30.182Z"
+    },
+    {
+      "id": 14,
+      "folderId": 6,
+      "english": "tea",
+      "uzbek": "choy",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.182Z",
+      "updatedAt": "2026-02-27T11:49:30.182Z"
+    },
+    {
+      "id": 15,
+      "folderId": 6,
+      "english": "coffee",
+      "uzbek": "qahva",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.182Z",
+      "updatedAt": "2026-02-27T11:49:30.182Z"
+    },
+    {
+      "id": 16,
+      "folderId": 6,
+      "english": "water",
+      "uzbek": "suv",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.182Z",
+      "updatedAt": "2026-02-27T11:49:30.182Z"
+    },
+    {
+      "id": 17,
+      "folderId": 6,
+      "english": "salt",
+      "uzbek": "tuz",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.182Z",
+      "updatedAt": "2026-02-27T11:49:30.182Z"
+    },
+    {
+      "id": 18,
+      "folderId": 6,
+      "english": "sugar",
+      "uzbek": "shakar",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.182Z",
+      "updatedAt": "2026-02-27T11:49:30.182Z"
+    },
+    {
+      "id": 19,
+      "folderId": 6,
+      "english": "milk",
+      "uzbek": "sut",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.182Z",
+      "updatedAt": "2026-02-27T11:49:30.182Z"
+    },
+    {
+      "id": 20,
+      "folderId": 6,
+      "english": "butter",
+      "uzbek": "sariyog'",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.182Z",
+      "updatedAt": "2026-02-27T11:49:30.182Z"
+    },
+    {
+      "id": 21,
+      "folderId": 6,
+      "english": "egg",
+      "uzbek": "tuxum",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.182Z",
+      "updatedAt": "2026-02-27T11:49:30.182Z"
+    },
+    {
+      "id": 22,
+      "folderId": 6,
+      "english": "soup",
+      "uzbek": "sho'rva",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.182Z",
+      "updatedAt": "2026-02-27T11:49:30.182Z"
+    },
+    {
+      "id": 23,
+      "folderId": 6,
+      "english": "salad",
+      "uzbek": "salat",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.182Z",
+      "updatedAt": "2026-02-27T11:49:30.182Z"
+    },
+    {
+      "id": 24,
+      "folderId": 6,
+      "english": "fruit",
+      "uzbek": "meva",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.182Z",
+      "updatedAt": "2026-02-27T11:49:30.182Z"
+    },
+    {
+      "id": 25,
+      "folderId": 6,
+      "english": "vegetable",
+      "uzbek": "sabzavot",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.182Z",
+      "updatedAt": "2026-02-27T11:49:30.182Z"
+    },
+    {
+      "id": 26,
+      "folderId": 6,
+      "english": "chicken",
+      "uzbek": "tovuq",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.182Z",
+      "updatedAt": "2026-02-27T11:49:30.182Z"
+    },
+    {
+      "id": 27,
+      "folderId": 6,
+      "english": "juice",
+      "uzbek": "sharbat",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.182Z",
+      "updatedAt": "2026-02-27T11:49:30.182Z"
+    },
+    {
+      "id": 28,
+      "folderId": 7,
+      "english": "airport",
+      "uzbek": "aeroport",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.185Z",
+      "updatedAt": "2026-02-27T11:49:30.185Z"
+    },
+    {
+      "id": 29,
+      "folderId": 7,
+      "english": "ticket",
+      "uzbek": "chipta",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.185Z",
+      "updatedAt": "2026-02-27T11:49:30.185Z"
+    },
+    {
+      "id": 30,
+      "folderId": 7,
+      "english": "passport",
+      "uzbek": "pasport",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.185Z",
+      "updatedAt": "2026-02-27T11:49:30.185Z"
+    },
+    {
+      "id": 31,
+      "folderId": 7,
+      "english": "hotel",
+      "uzbek": "mehmonxona",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.185Z",
+      "updatedAt": "2026-02-27T11:49:30.185Z"
+    },
+    {
+      "id": 32,
+      "folderId": 7,
+      "english": "reservation",
+      "uzbek": "bron",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.185Z",
+      "updatedAt": "2026-02-27T11:49:30.185Z"
+    },
+    {
+      "id": 33,
+      "folderId": 7,
+      "english": "luggage",
+      "uzbek": "yuk",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.185Z",
+      "updatedAt": "2026-02-27T11:49:30.185Z"
+    },
+    {
+      "id": 34,
+      "folderId": 7,
+      "english": "train",
+      "uzbek": "poezd",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.185Z",
+      "updatedAt": "2026-02-27T11:49:30.185Z"
+    },
+    {
+      "id": 35,
+      "folderId": 7,
+      "english": "bus",
+      "uzbek": "avtobus",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.185Z",
+      "updatedAt": "2026-02-27T11:49:30.185Z"
+    },
+    {
+      "id": 36,
+      "folderId": 7,
+      "english": "taxi",
+      "uzbek": "taksi",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.185Z",
+      "updatedAt": "2026-02-27T11:49:30.185Z"
+    },
+    {
+      "id": 37,
+      "folderId": 7,
+      "english": "subway",
+      "uzbek": "metro",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.185Z",
+      "updatedAt": "2026-02-27T11:49:30.185Z"
+    },
+    {
+      "id": 38,
+      "folderId": 7,
+      "english": "station",
+      "uzbek": "bekat",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.185Z",
+      "updatedAt": "2026-02-27T11:49:30.185Z"
+    },
+    {
+      "id": 39,
+      "folderId": 7,
+      "english": "map",
+      "uzbek": "xarita",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.185Z",
+      "updatedAt": "2026-02-27T11:49:30.185Z"
+    },
+    {
+      "id": 40,
+      "folderId": 7,
+      "english": "destination",
+      "uzbek": "manzil",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.185Z",
+      "updatedAt": "2026-02-27T11:49:30.185Z"
+    },
+    {
+      "id": 41,
+      "folderId": 7,
+      "english": "guide",
+      "uzbek": "gid",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.185Z",
+      "updatedAt": "2026-02-27T11:49:30.185Z"
+    },
+    {
+      "id": 42,
+      "folderId": 7,
+      "english": "tour",
+      "uzbek": "sayohat",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.185Z",
+      "updatedAt": "2026-02-27T11:49:30.185Z"
+    },
+    {
+      "id": 43,
+      "folderId": 7,
+      "english": "departure",
+      "uzbek": "jo'nash",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.185Z",
+      "updatedAt": "2026-02-27T11:49:30.185Z"
+    },
+    {
+      "id": 44,
+      "folderId": 7,
+      "english": "arrival",
+      "uzbek": "kelish",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.185Z",
+      "updatedAt": "2026-02-27T11:49:30.185Z"
+    },
+    {
+      "id": 45,
+      "folderId": 7,
+      "english": "delay",
+      "uzbek": "kechikish",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.185Z",
+      "updatedAt": "2026-02-27T11:49:30.185Z"
+    },
+    {
+      "id": 46,
+      "folderId": 7,
+      "english": "border",
+      "uzbek": "chegara",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.185Z",
+      "updatedAt": "2026-02-27T11:49:30.185Z"
+    },
+    {
+      "id": 47,
+      "folderId": 7,
+      "english": "currency",
+      "uzbek": "valyuta",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.185Z",
+      "updatedAt": "2026-02-27T11:49:30.185Z"
+    },
+    {
+      "id": 48,
+      "folderId": 8,
+      "english": "computer",
+      "uzbek": "kompyuter",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.186Z",
+      "updatedAt": "2026-02-27T11:49:30.186Z"
+    },
+    {
+      "id": 49,
+      "folderId": 8,
+      "english": "phone",
+      "uzbek": "telefon",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.186Z",
+      "updatedAt": "2026-02-27T11:49:30.186Z"
+    },
+    {
+      "id": 50,
+      "folderId": 8,
+      "english": "screen",
+      "uzbek": "ekran",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.186Z",
+      "updatedAt": "2026-02-27T11:49:30.186Z"
+    },
+    {
+      "id": 51,
+      "folderId": 8,
+      "english": "keyboard",
+      "uzbek": "klaviatura",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.186Z",
+      "updatedAt": "2026-02-27T11:49:30.186Z"
+    },
+    {
+      "id": 52,
+      "folderId": 8,
+      "english": "mouse",
+      "uzbek": "sichqoncha",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.186Z",
+      "updatedAt": "2026-02-27T11:49:30.186Z"
+    },
+    {
+      "id": 53,
+      "folderId": 8,
+      "english": "internet",
+      "uzbek": "internet",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.186Z",
+      "updatedAt": "2026-02-27T11:49:30.186Z"
+    },
+    {
+      "id": 54,
+      "folderId": 8,
+      "english": "website",
+      "uzbek": "veb-sayt",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.186Z",
+      "updatedAt": "2026-02-27T11:49:30.186Z"
+    },
+    {
+      "id": 55,
+      "folderId": 8,
+      "english": "password",
+      "uzbek": "parol",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.186Z",
+      "updatedAt": "2026-02-27T11:49:30.186Z"
+    },
+    {
+      "id": 56,
+      "folderId": 8,
+      "english": "email",
+      "uzbek": "elektron pochta",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.186Z",
+      "updatedAt": "2026-02-27T11:49:30.186Z"
+    },
+    {
+      "id": 57,
+      "folderId": 8,
+      "english": "download",
+      "uzbek": "yuklab olish",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.186Z",
+      "updatedAt": "2026-02-27T11:49:30.186Z"
+    },
+    {
+      "id": 58,
+      "folderId": 8,
+      "english": "upload",
+      "uzbek": "yuklash",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.186Z",
+      "updatedAt": "2026-02-27T11:49:30.186Z"
+    },
+    {
+      "id": 59,
+      "folderId": 8,
+      "english": "file",
+      "uzbek": "fayl",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.186Z",
+      "updatedAt": "2026-02-27T11:49:30.186Z"
+    },
+    {
+      "id": 60,
+      "folderId": 8,
+      "english": "folder",
+      "uzbek": "papka",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.186Z",
+      "updatedAt": "2026-02-27T11:49:30.186Z"
+    },
+    {
+      "id": 61,
+      "folderId": 8,
+      "english": "camera",
+      "uzbek": "kamera",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.186Z",
+      "updatedAt": "2026-02-27T11:49:30.186Z"
+    },
+    {
+      "id": 62,
+      "folderId": 8,
+      "english": "battery",
+      "uzbek": "batareya",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.186Z",
+      "updatedAt": "2026-02-27T11:49:30.186Z"
+    },
+    {
+      "id": 63,
+      "folderId": 8,
+      "english": "charger",
+      "uzbek": "quvvatlagich",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.186Z",
+      "updatedAt": "2026-02-27T11:49:30.186Z"
+    },
+    {
+      "id": 64,
+      "folderId": 8,
+      "english": "software",
+      "uzbek": "dasturiy ta'minot",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.186Z",
+      "updatedAt": "2026-02-27T11:49:30.186Z"
+    },
+    {
+      "id": 65,
+      "folderId": 8,
+      "english": "hardware",
+      "uzbek": "qurilma",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.186Z",
+      "updatedAt": "2026-02-27T11:49:30.186Z"
+    },
+    {
+      "id": 66,
+      "folderId": 8,
+      "english": "update",
+      "uzbek": "yangilash",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.186Z",
+      "updatedAt": "2026-02-27T11:49:30.186Z"
+    },
+    {
+      "id": 67,
+      "folderId": 8,
+      "english": "security",
+      "uzbek": "xavfsizlik",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.186Z",
+      "updatedAt": "2026-02-27T11:49:30.186Z"
+    },
+    {
+      "id": 68,
+      "folderId": 9,
+      "english": "doctor",
+      "uzbek": "shifokor",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.189Z",
+      "updatedAt": "2026-02-27T11:49:30.189Z"
+    },
+    {
+      "id": 69,
+      "folderId": 9,
+      "english": "nurse",
+      "uzbek": "hamshira",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.189Z",
+      "updatedAt": "2026-02-27T11:49:30.189Z"
+    },
+    {
+      "id": 70,
+      "folderId": 9,
+      "english": "hospital",
+      "uzbek": "kasalxona",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.189Z",
+      "updatedAt": "2026-02-27T11:49:30.189Z"
+    },
+    {
+      "id": 71,
+      "folderId": 9,
+      "english": "medicine",
+      "uzbek": "dori",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.189Z",
+      "updatedAt": "2026-02-27T11:49:30.189Z"
+    },
+    {
+      "id": 72,
+      "folderId": 9,
+      "english": "pain",
+      "uzbek": "og'riq",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.189Z",
+      "updatedAt": "2026-02-27T11:49:30.189Z"
+    },
+    {
+      "id": 73,
+      "folderId": 9,
+      "english": "fever",
+      "uzbek": "isitma",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.189Z",
+      "updatedAt": "2026-02-27T11:49:30.189Z"
+    },
+    {
+      "id": 74,
+      "folderId": 9,
+      "english": "headache",
+      "uzbek": "bosh og'rig'i",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.189Z",
+      "updatedAt": "2026-02-27T11:49:30.189Z"
+    },
+    {
+      "id": 75,
+      "folderId": 9,
+      "english": "cough",
+      "uzbek": "yo'tal",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.189Z",
+      "updatedAt": "2026-02-27T11:49:30.189Z"
+    },
+    {
+      "id": 76,
+      "folderId": 9,
+      "english": "health",
+      "uzbek": "sog'liq",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.189Z",
+      "updatedAt": "2026-02-27T11:49:30.189Z"
+    },
+    {
+      "id": 77,
+      "folderId": 9,
+      "english": "exercise",
+      "uzbek": "mashq",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.189Z",
+      "updatedAt": "2026-02-27T11:49:30.189Z"
+    },
+    {
+      "id": 78,
+      "folderId": 9,
+      "english": "sleep",
+      "uzbek": "uyqu",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.189Z",
+      "updatedAt": "2026-02-27T11:49:30.189Z"
+    },
+    {
+      "id": 79,
+      "folderId": 9,
+      "english": "diet",
+      "uzbek": "parhez",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.189Z",
+      "updatedAt": "2026-02-27T11:49:30.189Z"
+    },
+    {
+      "id": 80,
+      "folderId": 9,
+      "english": "blood",
+      "uzbek": "qon",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.189Z",
+      "updatedAt": "2026-02-27T11:49:30.189Z"
+    },
+    {
+      "id": 81,
+      "folderId": 9,
+      "english": "heart",
+      "uzbek": "yurak",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.189Z",
+      "updatedAt": "2026-02-27T11:49:30.189Z"
+    },
+    {
+      "id": 82,
+      "folderId": 9,
+      "english": "stomach",
+      "uzbek": "oshqozon",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.189Z",
+      "updatedAt": "2026-02-27T11:49:30.189Z"
+    },
+    {
+      "id": 83,
+      "folderId": 9,
+      "english": "injury",
+      "uzbek": "jarohat",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.189Z",
+      "updatedAt": "2026-02-27T11:49:30.189Z"
+    },
+    {
+      "id": 84,
+      "folderId": 9,
+      "english": "appointment",
+      "uzbek": "qabul",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.189Z",
+      "updatedAt": "2026-02-27T11:49:30.189Z"
+    },
+    {
+      "id": 85,
+      "folderId": 9,
+      "english": "clinic",
+      "uzbek": "klinika",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.189Z",
+      "updatedAt": "2026-02-27T11:49:30.189Z"
+    },
+    {
+      "id": 86,
+      "folderId": 9,
+      "english": "vaccine",
+      "uzbek": "vaksina",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.189Z",
+      "updatedAt": "2026-02-27T11:49:30.189Z"
+    },
+    {
+      "id": 87,
+      "folderId": 9,
+      "english": "recovery",
+      "uzbek": "tiklanish",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.189Z",
+      "updatedAt": "2026-02-27T11:49:30.189Z"
+    },
+    {
+      "id": 88,
+      "folderId": 10,
+      "english": "company",
+      "uzbek": "kompaniya",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.193Z",
+      "updatedAt": "2026-02-27T11:49:30.193Z"
+    },
+    {
+      "id": 89,
+      "folderId": 10,
+      "english": "job",
+      "uzbek": "ish",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.193Z",
+      "updatedAt": "2026-02-27T11:49:30.193Z"
+    },
+    {
+      "id": 90,
+      "folderId": 10,
+      "english": "salary",
+      "uzbek": "maosh",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.193Z",
+      "updatedAt": "2026-02-27T11:49:30.193Z"
+    },
+    {
+      "id": 91,
+      "folderId": 10,
+      "english": "meeting",
+      "uzbek": "uchrashuv",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.193Z",
+      "updatedAt": "2026-02-27T11:49:30.193Z"
+    },
+    {
+      "id": 92,
+      "folderId": 10,
+      "english": "project",
+      "uzbek": "loyiha",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.193Z",
+      "updatedAt": "2026-02-27T11:49:30.193Z"
+    },
+    {
+      "id": 93,
+      "folderId": 10,
+      "english": "deadline",
+      "uzbek": "muddat",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.193Z",
+      "updatedAt": "2026-02-27T11:49:30.193Z"
+    },
+    {
+      "id": 94,
+      "folderId": 10,
+      "english": "contract",
+      "uzbek": "shartnoma",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.193Z",
+      "updatedAt": "2026-02-27T11:49:30.193Z"
+    },
+    {
+      "id": 95,
+      "folderId": 10,
+      "english": "client",
+      "uzbek": "mijoz",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.193Z",
+      "updatedAt": "2026-02-27T11:49:30.193Z"
+    },
+    {
+      "id": 96,
+      "folderId": 10,
+      "english": "invoice",
+      "uzbek": "hisob-faktura",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.193Z",
+      "updatedAt": "2026-02-27T11:49:30.193Z"
+    },
+    {
+      "id": 97,
+      "folderId": 10,
+      "english": "budget",
+      "uzbek": "byudjet",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.193Z",
+      "updatedAt": "2026-02-27T11:49:30.193Z"
+    },
+    {
+      "id": 98,
+      "folderId": 10,
+      "english": "profit",
+      "uzbek": "foyda",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.193Z",
+      "updatedAt": "2026-02-27T11:49:30.193Z"
+    },
+    {
+      "id": 99,
+      "folderId": 10,
+      "english": "loss",
+      "uzbek": "zarar",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.193Z",
+      "updatedAt": "2026-02-27T11:49:30.193Z"
+    },
+    {
+      "id": 100,
+      "folderId": 10,
+      "english": "market",
+      "uzbek": "bozor",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.193Z",
+      "updatedAt": "2026-02-27T11:49:30.193Z"
+    },
+    {
+      "id": 101,
+      "folderId": 10,
+      "english": "strategy",
+      "uzbek": "strategiya",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.193Z",
+      "updatedAt": "2026-02-27T11:49:30.193Z"
+    },
+    {
+      "id": 102,
+      "folderId": 10,
+      "english": "report",
+      "uzbek": "hisobot",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.193Z",
+      "updatedAt": "2026-02-27T11:49:30.193Z"
+    },
+    {
+      "id": 103,
+      "folderId": 10,
+      "english": "presentation",
+      "uzbek": "taqdimot",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.193Z",
+      "updatedAt": "2026-02-27T11:49:30.193Z"
+    },
+    {
+      "id": 104,
+      "folderId": 10,
+      "english": "manager",
+      "uzbek": "menejer",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.193Z",
+      "updatedAt": "2026-02-27T11:49:30.193Z"
+    },
+    {
+      "id": 105,
+      "folderId": 10,
+      "english": "employee",
+      "uzbek": "xodim",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.193Z",
+      "updatedAt": "2026-02-27T11:49:30.193Z"
+    },
+    {
+      "id": 106,
+      "folderId": 10,
+      "english": "goal",
+      "uzbek": "maqsad",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.193Z",
+      "updatedAt": "2026-02-27T11:49:30.193Z"
+    },
+    {
+      "id": 107,
+      "folderId": 10,
+      "english": "promotion",
+      "uzbek": "lavozim oshishi",
+      "example": null,
+      "createdBy": null,
+      "createdAt": "2026-02-27T11:49:30.193Z",
+      "updatedAt": "2026-02-27T11:49:30.193Z"
     }
   ],
   "userProgress": [
@@ -130,31 +1215,111 @@
       "id": 1,
       "userId": 3,
       "wordId": 1,
-      "known": false,
-      "reviewCount": 5,
-      "lastReviewedAt": "2026-02-27T11:12:56.181Z",
+      "known": true,
+      "reviewCount": 6,
+      "lastReviewedAt": "2026-02-27T11:45:20.090Z",
       "createdAt": "2026-02-27T11:12:08.437Z",
-      "updatedAt": "2026-02-27T11:12:56.181Z"
+      "updatedAt": "2026-02-27T11:45:20.090Z"
     },
     {
       "id": 2,
       "userId": 3,
       "wordId": 2,
-      "known": false,
-      "reviewCount": 3,
-      "lastReviewedAt": "2026-02-27T11:12:52.769Z",
+      "known": true,
+      "reviewCount": 5,
+      "lastReviewedAt": "2026-02-27T11:45:23.134Z",
       "createdAt": "2026-02-27T11:12:44.107Z",
-      "updatedAt": "2026-02-27T11:12:52.769Z"
+      "updatedAt": "2026-02-27T11:45:23.134Z"
     },
     {
       "id": 3,
       "userId": 3,
       "wordId": 3,
       "known": true,
-      "reviewCount": 2,
-      "lastReviewedAt": "2026-02-27T11:12:49.812Z",
+      "reviewCount": 3,
+      "lastReviewedAt": "2026-02-27T11:45:21.809Z",
       "createdAt": "2026-02-27T11:12:45.081Z",
-      "updatedAt": "2026-02-27T11:12:49.812Z"
+      "updatedAt": "2026-02-27T11:45:21.809Z"
+    },
+    {
+      "id": 4,
+      "userId": 1,
+      "wordId": 4,
+      "known": true,
+      "reviewCount": 3,
+      "lastReviewedAt": "2026-02-27T11:40:04.222Z",
+      "createdAt": "2026-02-27T11:39:43.547Z",
+      "updatedAt": "2026-02-27T11:40:04.222Z"
+    },
+    {
+      "id": 5,
+      "userId": 1,
+      "wordId": 5,
+      "known": true,
+      "reviewCount": 3,
+      "lastReviewedAt": "2026-02-27T11:40:05.704Z",
+      "createdAt": "2026-02-27T11:39:45.385Z",
+      "updatedAt": "2026-02-27T11:40:05.704Z"
+    },
+    {
+      "id": 6,
+      "userId": 1,
+      "wordId": 6,
+      "known": true,
+      "reviewCount": 1,
+      "lastReviewedAt": "2026-02-27T11:39:46.255Z",
+      "createdAt": "2026-02-27T11:39:46.255Z",
+      "updatedAt": "2026-02-27T11:39:46.255Z"
+    },
+    {
+      "id": 7,
+      "userId": 1,
+      "wordId": 7,
+      "known": true,
+      "reviewCount": 1,
+      "lastReviewedAt": "2026-02-27T11:39:47.209Z",
+      "createdAt": "2026-02-27T11:39:47.209Z",
+      "updatedAt": "2026-02-27T11:39:47.209Z"
+    },
+    {
+      "id": 8,
+      "userId": 1,
+      "wordId": 68,
+      "known": true,
+      "reviewCount": 1,
+      "lastReviewedAt": "2026-02-27T11:50:03.192Z",
+      "createdAt": "2026-02-27T11:50:03.192Z",
+      "updatedAt": "2026-02-27T11:50:03.192Z"
+    },
+    {
+      "id": 9,
+      "userId": 1,
+      "wordId": 69,
+      "known": true,
+      "reviewCount": 1,
+      "lastReviewedAt": "2026-02-27T11:50:05.749Z",
+      "createdAt": "2026-02-27T11:50:05.749Z",
+      "updatedAt": "2026-02-27T11:50:05.749Z"
+    },
+    {
+      "id": 10,
+      "userId": 1,
+      "wordId": 70,
+      "known": false,
+      "reviewCount": 1,
+      "lastReviewedAt": "2026-02-27T11:50:08.722Z",
+      "createdAt": "2026-02-27T11:50:08.722Z",
+      "updatedAt": "2026-02-27T11:50:08.722Z"
+    },
+    {
+      "id": 11,
+      "userId": 1,
+      "wordId": 71,
+      "known": false,
+      "reviewCount": 1,
+      "lastReviewedAt": "2026-02-27T11:50:13.361Z",
+      "createdAt": "2026-02-27T11:50:13.361Z",
+      "updatedAt": "2026-02-27T11:50:13.361Z"
     }
   ]
 }

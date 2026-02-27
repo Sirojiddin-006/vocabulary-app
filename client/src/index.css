@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -118,6 +119,7 @@
     @apply border-border outline-ring/50;
   }
   body {
+    font-family: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
     @apply bg-background text-foreground;
   }
   button:not(:disabled),
@@ -155,6 +157,43 @@
     padding-right: 1rem;
   }
 
+  .font-display {
+    font-family: "Space Grotesk", "Manrope", system-ui, -apple-system, "Segoe UI",
+      sans-serif;
+  }
+
+  .app-bg {
+    background-color: #0b0e14;
+    background-image:
+      radial-gradient(900px circle at 10% -10%, rgba(14, 165, 233, 0.18), transparent 55%),
+      radial-gradient(700px circle at 90% 0%, rgba(16, 185, 129, 0.16), transparent 60%);
+  }
+
+  .card-fade-in {
+    animation: cardFadeIn 550ms ease both;
+  }
+
+  .card-hover-glow {
+    transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+  }
+
+  .card-hover-glow:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.25);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .memorize-page {
+    min-height: 100dvh;
+    overscroll-behavior-x: none;
+  }
+
+  .swipe-card {
+    touch-action: pan-y;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
   .flex {
     min-height: 0;
     min-width: 0;
@@ -173,5 +212,16 @@
       padding-right: 2rem;
       max-width: 1280px; /* Standard content width */
     }
+  }
+}
+
+@keyframes cardFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

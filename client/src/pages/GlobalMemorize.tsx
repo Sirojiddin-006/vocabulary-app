@@ -70,7 +70,7 @@ function parseDirectionFromUrl(): StudyDirection {
   return "en-uz";
 }
 
-export default function Memorize() {
+export default function GlobalMemorize() {
   const { isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
   const params = useParams();
@@ -104,7 +104,12 @@ export default function Memorize() {
   const [modeStats, setModeStats] = useState<ModeStats>(INITIAL_MODE_STATS);
   const wrongContinueTimerRef = useRef<number | null>(null);
 
-  const { data: words = [], isLoading: wordsLoading } = trpc.vocabulary.getWords.useQuery(
+  const { data: folder } = trpc.vocabulary.getGlobalFolderById.useQuery(
+    { folderId },
+    { enabled: isAuthenticated && folderId > 0 }
+  );
+
+  const { data: words = [], isLoading: wordsLoading } = trpc.vocabulary.getGlobalWords.useQuery(
     { folderId },
     { enabled: isAuthenticated && folderId > 0 }
   );
@@ -232,7 +237,7 @@ export default function Memorize() {
       <div className="min-h-screen w-full app-bg text-white flex flex-col items-center justify-center">
         <p className="text-[#A6B0BE] mb-4">No words in this folder</p>
         <Button
-          onClick={() => setLocation("/")}
+          onClick={() => setLocation("/global")}
           className="bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full"
         >
           Go Back
@@ -248,7 +253,7 @@ export default function Memorize() {
           <p className="text-white text-xl font-bold mb-4">All words learned!</p>
           <p className="text-[#A6B0BE] mb-8">Great job! You've completed this session.</p>
           <Button
-            onClick={() => setLocation("/")}
+            onClick={() => setLocation("/global")}
             className="px-6 py-3 bg-[#0EA5FF] hover:bg-[#0c8fd9] rounded-full text-white"
           >
             Go Back
@@ -477,12 +482,12 @@ export default function Memorize() {
         <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
           <div className="flex items-center justify-between py-4">
             <button
-              onClick={() => setLocation("/")}
+              onClick={() => setLocation("/global")}
               className="p-2 -ml-2 hover:bg-white/5 rounded-lg transition-colors"
             >
               <ChevronLeft className="w-6 h-6 text-white" />
             </button>
-            <h1 className="font-display text-[#0EA5FF]">Memorize</h1>
+            <h1 className="font-display text-[#0EA5FF]">{folder?.name || "Memorize"}</h1>
             {isStarted ? (
               <button
                 type="button"
@@ -709,20 +714,20 @@ export default function Memorize() {
                 </div>
 
                 <div className="flex gap-3 sm:gap-4">
-                  <button
+                  <Button
                     onClick={() => handleAnswer(false)}
                     disabled={!isStarted || !!pendingWrongMode}
-                    className="flex-1 h-14 sm:h-16 bg-[#0EA5FF] rounded-full flex items-center justify-center hover:bg-[#0c8fd9] transition-colors"
+                    className="flex-1 bg-[#EF4444] hover:bg-[#dc2626] text-white rounded-full py-2.5 sm:py-3"
                   >
-                    <span className="text-white font-semibold">Don't Know</span>
-                  </button>
-                  <button
+                    Don't Know
+                  </Button>
+                  <Button
                     onClick={() => handleAnswer(true)}
                     disabled={!isStarted || !!pendingWrongMode}
-                    className="flex-1 h-14 sm:h-16 bg-[#10B981] rounded-full flex items-center justify-center hover:bg-[#0ea073] transition-colors"
+                    className="flex-1 bg-[#10B981] hover:bg-[#0ea073] text-white rounded-full py-2.5 sm:py-3"
                   >
-                    <span className="text-white font-semibold">I Know</span>
-                  </button>
+                    I Know
+                  </Button>
                 </div>
               </>
             ) : null}
@@ -853,21 +858,6 @@ export default function Memorize() {
               null
             ) : null}
           </div>
-
-          {mode === "classic" && isDragging && (
-            <>
-              {dragOffset > 50 && (
-                <div className="absolute top-1/4 right-8 text-[#10B981] opacity-80 pointer-events-none">
-                  <div className="text-6xl">✓</div>
-                </div>
-              )}
-              {dragOffset < -50 && (
-                <div className="absolute top-1/4 left-8 text-[#0EA5FF] opacity-80 pointer-events-none">
-                  <div className="text-6xl">✗</div>
-                </div>
-              )}
-            </>
-          )}
         </div>
       </div>
       ) : (

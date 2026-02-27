@@ -45,9 +45,9 @@ export default function SignUp() {
   }, [username, password, confirmPassword, passwordMismatch]);
 
   return (
-    <div className="min-h-screen bg-[#0F1720] text-white flex items-center justify-center px-6">
-      <Card className="w-full max-w-md bg-[#15202B] border-0 p-6">
-        <h1 className="text-2xl font-bold mb-2">{APP_TITLE}</h1>
+    <div className="min-h-screen w-full app-bg text-white flex items-center justify-center px-6">
+      <Card className="w-full max-w-md bg-[#111827] border border-white/10 p-8 shadow-[0_20px_70px_rgba(0,0,0,0.35)]">
+        <h1 className="font-display text-2xl font-semibold mb-2">{APP_TITLE}</h1>
         <p className="text-[#A6B0BE] mb-6">Create your account.</p>
 
         <div className="space-y-4">
@@ -57,7 +57,7 @@ export default function SignUp() {
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="Your name"
-              className="bg-[#0F1720] border-[#1a2732] text-white placeholder-[#A6B0BE]"
+              className="bg-[#0B0E14] border-white/10 text-white placeholder-[#A6B0BE]"
             />
           </div>
           <div>
@@ -67,7 +67,7 @@ export default function SignUp() {
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="you@email.com"
-              className="bg-[#0F1720] border-[#1a2732] text-white placeholder-[#A6B0BE]"
+              className="bg-[#0B0E14] border-white/10 text-white placeholder-[#A6B0BE]"
             />
           </div>
           <div>
@@ -76,7 +76,7 @@ export default function SignUp() {
               value={username}
               onChange={e => setUsername(e.target.value)}
               placeholder="Choose a username"
-              className="bg-[#0F1720] border-[#1a2732] text-white placeholder-[#A6B0BE]"
+              className="bg-[#0B0E14] border-white/10 text-white placeholder-[#A6B0BE]"
             />
           </div>
           <div>
@@ -86,7 +86,7 @@ export default function SignUp() {
               value={password}
               onChange={e => setPassword(e.target.value)}
               placeholder="Create a password"
-              className="bg-[#0F1720] border-[#1a2732] text-white placeholder-[#A6B0BE]"
+              className="bg-[#0B0E14] border-white/10 text-white placeholder-[#A6B0BE]"
             />
           </div>
           <div>
@@ -96,7 +96,7 @@ export default function SignUp() {
               value={confirmPassword}
               onChange={e => setConfirmPassword(e.target.value)}
               placeholder="Repeat password"
-              className="bg-[#0F1720] border-[#1a2732] text-white placeholder-[#A6B0BE]"
+              className="bg-[#0B0E14] border-white/10 text-white placeholder-[#A6B0BE]"
             />
           </div>
           {passwordMismatch && (
