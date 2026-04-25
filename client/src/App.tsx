@@ -18,6 +18,7 @@ import Global from "./pages/Global";
 import GlobalFolder from "./pages/GlobalFolder";
 import GlobalMemorize from "./pages/GlobalMemorize";
 import GlobalReview from "./pages/GlobalReview";
+import BookUnitsPage from "./pages/BookUnitsPage";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -32,6 +33,8 @@ function Router() {
       <Route path={"/signup"} component={SignUp} />
       <Route path={"/global"} component={Global} />
       <Route path={"/global/folder/:id"} component={GlobalFolder} />
+      <Route path={"/book/:bookId/units"} component={BookUnitsPage} />
+      <Route path={"/global/book/:bookId/units"} component={BookUnitsPage} />
       <Route path={"/global/review/:id"} component={GlobalReview} />
       <Route path={"/global/memorize/:id"} component={GlobalMemorize} />
       <Route path={"/404"} component={NotFound} />

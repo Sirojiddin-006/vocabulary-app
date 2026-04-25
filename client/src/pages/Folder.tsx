@@ -143,18 +143,18 @@ export default function Folder() {
   if (folderLoading) {
     return (
       <div className="min-h-screen w-full app-bg flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-[#0EA5FF]" />
+        <Loader2 className="w-8 h-8 animate-spin text-[var(--accent)]" />
       </div>
     );
   }
 
   if (!folder) {
     return (
-      <div className="min-h-screen w-full app-bg text-white flex flex-col items-center justify-center">
-        <p className="text-[#A6B0BE] mb-4">Folder not found</p>
+      <div className="min-h-screen w-full app-bg scholar-title flex flex-col items-center justify-center">
+        <p className="scholar-muted mb-4">Folder not found</p>
         <Button
           onClick={() => setLocation("/")}
-          className="bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full"
+          className="bg-[var(--accent)] hover:bg-[var(--accent-strong)] scholar-title rounded-full"
         >
           Go Back
         </Button>
@@ -187,7 +187,7 @@ export default function Folder() {
               {isSavedGlobalFolder && !isBookManagedFolder ? (
                 <Badge
                   variant="outline"
-                  className="border-[#0EA5FF]/40 bg-[#0EA5FF]/10 text-[#0EA5FF] rounded-full"
+                  className="border-[var(--accent)]/40 bg-[var(--accent)]/10 text-[var(--accent)] rounded-full"
                 >
                   Personal copy
                 </Badge>
@@ -200,25 +200,25 @@ export default function Folder() {
 
       {/* Folder Info */}
       <div className="mx-auto w-full max-w-6xl px-6 py-5">
-        <div className="rounded-2xl border border-white/10 bg-[#111827] px-6 py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <span className="text-[#A6B0BE]">{words.length} words</span>
+            <span className="scholar-muted">{words.length} words</span>
             {editingHelpText ? (
-              <p className="text-xs text-[#A6B0BE] mt-1">{editingHelpText}</p>
+              <p className="text-xs scholar-muted mt-1">{editingHelpText}</p>
             ) : null}
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
             <Button
               onClick={() => setLocation(`/review/${folderId}`)}
               variant="outline"
-              className="border-white/10 text-white hover:bg-white/5 rounded-full text-sm"
+              className="border-[var(--surface-border)] scholar-title hover:bg-[var(--accent-muted)] rounded-full text-sm"
             >
               <RotateCcw className="w-4 h-4 mr-2" />
               Review
             </Button>
             <Button
               onClick={() => setLocation(`/memorize/${folderId}`)}
-              className="bg-[#10B981] hover:bg-[#0ea073] text-white rounded-full text-sm"
+              className="bg-[color-mix(in_srgb,_var(--accent)_55%,_#10B981)] hover:bg-[color-mix(in_srgb,_var(--accent-strong)_45%,_#0b7a57)] scholar-title rounded-full text-sm"
             >
               <Play className="w-4 h-4 mr-2" />
               Memorize
@@ -246,15 +246,15 @@ export default function Folder() {
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Search words..."
-            className="bg-[#0B0E14] border-white/10 text-white placeholder-[#A6B0BE]"
+            className="bg-[var(--surface)] border-[var(--surface-border)] scholar-title placeholder:text-[var(--text-secondary)]"
           />
           <div className="flex gap-2">
             <Button
               onClick={() => setSort("az")}
               variant="outline"
               className={sort === "az"
-                ? "border-[#0EA5FF] text-[#0EA5FF] bg-[#0EA5FF]/10"
-                : "border-white/10 text-white hover:bg-white/5"}
+                ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/10"
+                : "border-[var(--surface-border)] scholar-title hover:bg-[var(--accent-muted)]"}
             >
               A - Z
             </Button>
@@ -262,8 +262,8 @@ export default function Folder() {
               onClick={() => setSort("za")}
               variant="outline"
               className={sort === "za"
-                ? "border-[#0EA5FF] text-[#0EA5FF] bg-[#0EA5FF]/10"
-                : "border-white/10 text-white hover:bg-white/5"}
+                ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/10"
+                : "border-[var(--surface-border)] scholar-title hover:bg-[var(--accent-muted)]"}
             >
               Z - A
             </Button>
@@ -274,15 +274,15 @@ export default function Folder() {
       <div className="flex-1 mx-auto w-full max-w-6xl px-6 py-4 pb-28">
         {wordsLoading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-6 h-6 animate-spin text-[#0EA5FF]" />
+            <Loader2 className="w-6 h-6 animate-spin text-[var(--accent)]" />
           </div>
         ) : filteredWords.length === 0 ? (
-          <div className="text-center py-12 rounded-2xl border border-white/10 bg-[#0F1720]">
-            <p className="text-[#A6B0BE] mb-4">No words found.</p>
+          <div className="text-center py-12 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)]">
+            <p className="scholar-muted mb-4">No words found.</p>
             {!isBookManagedFolder ? (
               <Button
                 onClick={() => setShowAddWordDialog(true)}
-                className="bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full"
+                className="bg-[var(--accent)] hover:bg-[var(--accent-strong)] scholar-title rounded-full"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Word
@@ -294,20 +294,20 @@ export default function Folder() {
             {filteredWords.map((word) => (
               <Card
                 key={word.id}
-                className="bg-[#111827] border border-white/10 p-5 card-hover-glow"
+                className="bg-[var(--surface)] border border-[var(--surface-border)] p-5 card-hover-glow"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="text-white font-semibold">{word.english}</h3>
+                      <h3 className="scholar-title font-semibold">{word.english}</h3>
                       <EnglishSpeakButton text={word.english} />
                     </div>
-                    <p className="text-[#A6B0BE] text-sm">{word.uzbek}</p>
+                    <p className="scholar-muted text-sm">{word.uzbek}</p>
                     {word.description && (
-                      <p className="text-[#C9D3E0] text-xs mt-2">{word.description}</p>
+                      <p className="scholar-muted text-xs mt-2">{word.description}</p>
                     )}
                     {word.example && (
-                      <p className="text-[#A6B0BE] text-xs mt-2 italic">"{word.example}"</p>
+                      <p className="scholar-muted text-xs mt-2 italic">"{word.example}"</p>
                     )}
                   </div>
                   {!isBookManagedFolder ? (
@@ -324,7 +324,7 @@ export default function Folder() {
                         });
                         setShowEditWordDialog(true);
                       }}
-                      className="border-white/10 text-white hover:bg-white/5 rounded-full text-xs px-3 py-1 ml-3"
+                      className="border-[var(--surface-border)] scholar-title hover:bg-[var(--accent-muted)] rounded-full text-xs px-3 py-1 ml-3"
                     >
                       <Pencil className="w-3.5 h-3.5 mr-1" />
                       Edit
@@ -338,20 +338,20 @@ export default function Folder() {
       </div>
 
       {/* Bottom Action Buttons */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[#0B0E14]/70 backdrop-blur border-t border-white/10">
+      <div className="fixed bottom-0 left-0 right-0 bg-[var(--surface)]/70 backdrop-blur border-t border-[var(--surface-border)]">
         <div className="mx-auto w-full max-w-6xl px-6 py-4 space-y-2">
           {!isBookManagedFolder ? (
             <>
               <Button
                 onClick={() => setShowAddWordDialog(true)}
-                className="w-full bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full"
+                className="w-full bg-[var(--accent)] hover:bg-[var(--accent-strong)] scholar-title rounded-full"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Word
               </Button>
               <Button
                 onClick={() => setShowBulkImportDialog(true)}
-                className="w-full bg-[#8B5CF6] hover:bg-[#7c3aed] text-white rounded-full"
+                className="w-full bg-[#8B5CF6] hover:bg-[#7c3aed] scholar-title rounded-full"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Bulk Import
@@ -363,46 +363,46 @@ export default function Folder() {
 
       {/* Add Word Dialog */}
       <Dialog open={showAddWordDialog && !isBookManagedFolder} onOpenChange={setShowAddWordDialog}>
-        <DialogContent className="bg-[#15202B] border-[#1a2732] text-white">
+        <DialogContent className="scholar-surface-elevated border-[var(--surface-border)] scholar-title">
           <DialogHeader>
             <DialogTitle>Add New Word</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm text-[#A6B0BE] mb-2 block">English Word</label>
+              <label className="text-sm scholar-muted mb-2 block">English Word</label>
               <Input
                 placeholder="e.g., beautiful"
                 value={newWord.english}
                 onChange={(e) => setNewWord({ ...newWord, english: e.target.value })}
-                className="bg-[#0F1720] border-[#1a2732] text-white placeholder-[#A6B0BE]"
+                className="bg-[var(--surface)] border-[var(--surface-border)] scholar-title placeholder:text-[var(--text-secondary)]"
               />
             </div>
             <div>
-              <label className="text-sm text-[#A6B0BE] mb-2 block">Uzbek Translation</label>
+              <label className="text-sm scholar-muted mb-2 block">Uzbek Translation</label>
               <Input
                 placeholder="e.g., go'zal"
                 value={newWord.uzbek}
                 onChange={(e) => setNewWord({ ...newWord, uzbek: e.target.value })}
-                className="bg-[#0F1720] border-[#1a2732] text-white placeholder-[#A6B0BE]"
+                className="bg-[var(--surface)] border-[var(--surface-border)] scholar-title placeholder:text-[var(--text-secondary)]"
               />
             </div>
             <div>
-              <label className="text-sm text-[#A6B0BE] mb-2 block">Description (Optional)</label>
+              <label className="text-sm scholar-muted mb-2 block">Description (Optional)</label>
               <Textarea
                 placeholder="e.g., Used to describe something pleasant to look at."
                 value={newWord.description}
                 onChange={(e) => setNewWord({ ...newWord, description: e.target.value })}
-                className="bg-[#0F1720] border-[#1a2732] text-white placeholder-[#A6B0BE] resize-none"
+                className="bg-[var(--surface)] border-[var(--surface-border)] scholar-title placeholder:text-[var(--text-secondary)] resize-none"
                 rows={2}
               />
             </div>
             <div>
-              <label className="text-sm text-[#A6B0BE] mb-2 block">Example (Optional)</label>
+              <label className="text-sm scholar-muted mb-2 block">Example (Optional)</label>
               <Textarea
                 placeholder="e.g., She has a beautiful smile."
                 value={newWord.example}
                 onChange={(e) => setNewWord({ ...newWord, example: e.target.value })}
-                className="bg-[#0F1720] border-[#1a2732] text-white placeholder-[#A6B0BE] resize-none"
+                className="bg-[var(--surface)] border-[var(--surface-border)] scholar-title placeholder:text-[var(--text-secondary)] resize-none"
                 rows={3}
               />
             </div>
@@ -419,7 +419,7 @@ export default function Folder() {
                 }
               }}
               disabled={!newWord.english.trim() || !newWord.uzbek.trim() || addWordMutation.isPending}
-              className="w-full bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full"
+              className="w-full bg-[var(--accent)] hover:bg-[var(--accent-strong)] scholar-title rounded-full"
             >
               {addWordMutation.isPending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -433,46 +433,46 @@ export default function Folder() {
 
       {/* Edit Word Dialog */}
       <Dialog open={showEditWordDialog && !isBookManagedFolder} onOpenChange={setShowEditWordDialog}>
-        <DialogContent className="bg-[#15202B] border-[#1a2732] text-white">
+        <DialogContent className="scholar-surface-elevated border-[var(--surface-border)] scholar-title">
           <DialogHeader>
             <DialogTitle>Edit Word</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm text-[#A6B0BE] mb-2 block">English Word</label>
+              <label className="text-sm scholar-muted mb-2 block">English Word</label>
               <Input
                 placeholder="e.g., beautiful"
                 value={newWord.english}
                 onChange={(e) => setNewWord({ ...newWord, english: e.target.value })}
-                className="bg-[#0F1720] border-[#1a2732] text-white placeholder-[#A6B0BE]"
+                className="bg-[var(--surface)] border-[var(--surface-border)] scholar-title placeholder:text-[var(--text-secondary)]"
               />
             </div>
             <div>
-              <label className="text-sm text-[#A6B0BE] mb-2 block">Uzbek Translation</label>
+              <label className="text-sm scholar-muted mb-2 block">Uzbek Translation</label>
               <Input
                 placeholder="e.g., go'zal"
                 value={newWord.uzbek}
                 onChange={(e) => setNewWord({ ...newWord, uzbek: e.target.value })}
-                className="bg-[#0F1720] border-[#1a2732] text-white placeholder-[#A6B0BE]"
+                className="bg-[var(--surface)] border-[var(--surface-border)] scholar-title placeholder:text-[var(--text-secondary)]"
               />
             </div>
             <div>
-              <label className="text-sm text-[#A6B0BE] mb-2 block">Description (Optional)</label>
+              <label className="text-sm scholar-muted mb-2 block">Description (Optional)</label>
               <Textarea
                 placeholder="e.g., Used to describe something pleasant to look at."
                 value={newWord.description}
                 onChange={(e) => setNewWord({ ...newWord, description: e.target.value })}
-                className="bg-[#0F1720] border-[#1a2732] text-white placeholder-[#A6B0BE] resize-none"
+                className="bg-[var(--surface)] border-[var(--surface-border)] scholar-title placeholder:text-[var(--text-secondary)] resize-none"
                 rows={2}
               />
             </div>
             <div>
-              <label className="text-sm text-[#A6B0BE] mb-2 block">Example (Optional)</label>
+              <label className="text-sm scholar-muted mb-2 block">Example (Optional)</label>
               <Textarea
                 placeholder="e.g., She has a beautiful smile."
                 value={newWord.example}
                 onChange={(e) => setNewWord({ ...newWord, example: e.target.value })}
-                className="bg-[#0F1720] border-[#1a2732] text-white placeholder-[#A6B0BE] resize-none"
+                className="bg-[var(--surface)] border-[var(--surface-border)] scholar-title placeholder:text-[var(--text-secondary)] resize-none"
                 rows={3}
               />
             </div>
@@ -489,7 +489,7 @@ export default function Folder() {
                 }
               }}
               disabled={!editingWordId || !newWord.english.trim() || !newWord.uzbek.trim() || updateWordMutation.isPending}
-              className="w-full bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full"
+              className="w-full bg-[var(--accent)] hover:bg-[var(--accent-strong)] scholar-title rounded-full"
             >
               {updateWordMutation.isPending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -503,23 +503,23 @@ export default function Folder() {
 
       {/* Bulk Import Dialog */}
       <Dialog open={showBulkImportDialog && !isBookManagedFolder} onOpenChange={setShowBulkImportDialog}>
-        <DialogContent className="bg-[#15202B] border-[#1a2732] text-white max-w-md">
+        <DialogContent className="scholar-surface-elevated border-[var(--surface-border)] scholar-title max-w-md">
           <DialogHeader>
             <DialogTitle>Bulk Import Words</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm text-[#A6B0BE] mb-2 block">
+              <label className="text-sm scholar-muted mb-2 block">
                 Enter words (one per line, format: English | Uzbek | Description | Example)
               </label>
               <Textarea
                 placeholder="beautiful | go'zal | pleasant to look at | She has a beautiful smile."
                 value={bulkImportText}
                 onChange={(e) => setBulkImportText(e.target.value)}
-                className="bg-[#0F1720] border-[#1a2732] text-white placeholder-[#A6B0BE] resize-none"
+                className="bg-[var(--surface)] border-[var(--surface-border)] scholar-title placeholder:text-[var(--text-secondary)] resize-none"
                 rows={8}
               />
-              <p className="text-xs text-[#A6B0BE] mt-2">
+              <p className="text-xs scholar-muted mt-2">
                 Separate values with | (pipe). Description and Example are optional.
               </p>
             </div>
@@ -547,7 +547,7 @@ export default function Folder() {
                 });
               }}
               disabled={!bulkImportText.trim() || importWordsMutation.isPending}
-              className="w-full bg-[#8B5CF6] hover:bg-[#7c3aed] text-white rounded-full"
+              className="w-full bg-[#8B5CF6] hover:bg-[#7c3aed] scholar-title rounded-full"
             >
               {importWordsMutation.isPending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -561,12 +561,12 @@ export default function Folder() {
 
       {/* Delete Folder Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent className="bg-[#15202B] border-[#1a2732] text-white max-w-md">
+        <DialogContent className="scholar-surface-elevated border-[var(--surface-border)] scholar-title max-w-md">
           <DialogHeader>
             <DialogTitle>{folderActionLabel}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-[#A6B0BE]">{folderActionDescription}</p>
+            <p className="text-sm scholar-muted">{folderActionDescription}</p>
             <Button
               onClick={() => {
                 if (isSavedGlobalFolder && folder.sourceGlobalFolderId) {
@@ -576,7 +576,7 @@ export default function Folder() {
                 deleteFolderMutation.mutate({ folderId });
               }}
               disabled={deleteFolderMutation.isPending || toggleSaveGlobalFolderMutation.isPending}
-              className="w-full bg-[#EF4444] hover:bg-[#dc2626] text-white rounded-full"
+              className="w-full bg-[#EF4444] hover:bg-[#dc2626] scholar-title rounded-full"
             >
               {deleteFolderMutation.isPending || toggleSaveGlobalFolderMutation.isPending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

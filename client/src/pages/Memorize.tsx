@@ -27,8 +27,10 @@ type Word = {
 type StudyMode = "test" | "type";
 type StudyDirection = "en-uz" | "uz-en" | "mixed";
 type ModeStats = Record<StudyMode, { attempted: number; correct: number }>;
+type SessionResult = { word: Word; correct: boolean };
 
 const TYPE_MODE_TIME_LIMIT_SECONDS = 9;
+const CORRECT_COOLDOWN_SECONDS = 3;
 
 const INITIAL_MODE_STATS: ModeStats = {
   test: { attempted: 0, correct: 0 },
@@ -65,11 +67,6 @@ function parseDirectionFromUrl(): StudyDirection {
   return "en-uz";
 }
 
-function resolveDirection(direction: StudyDirection, seed: number): Exclude<StudyDirection, "mixed"> {
-  if (direction !== "mixed") return direction;
-  return seed % 2 === 0 ? "en-uz" : "uz-en";
-}
-
 export default function Memorize() {
   const { isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
@@ -80,43 +77,77 @@ export default function Memorize() {
   const [direction, setDirection] = useState<StudyDirection>(() => {
     const initialMode = parseModeFromUrl();
     const parsedDirection = parseDirectionFromUrl();
-    if (typeof window === "undefined") return getDefaultDirectionForMode(initialMode);
+    if (typeof window === "undefined")
+      return getDefaultDirectionForMode(initialMode);
     const hasDir = new URLSearchParams(window.location.search).has("dir");
     return hasDir ? parsedDirection : getDefaultDirectionForMode(initialMode);
   });
-  const [selectedOption, setSelectedOption] = useState<string | null>(null);
-  const [typedAnswer, setTypedAnswer] = useState("");
-  const [typedResult, setTypedResult] = useState<"correct" | "wrong" | null>(null);
-  const [pendingWrongMode, setPendingWrongMode] = useState<StudyMode | null>(null);
-  const [wordQueue, setWordQueue] = useState<Word[]>([]);
+
+  const [remainingWords, setRemainingWords] = useState<Word[]>([]);
+  const [results, setResults] = useState<SessionResult[]>([]);
   const [sessionTotal, setSessionTotal] = useState(0);
   const [showStats, setShowStats] = useState(false);
   const [modeStats, setModeStats] = useState<ModeStats>(INITIAL_MODE_STATS);
   const [isCardReady, setIsCardReady] = useState(false);
-  const [typeTimeLeft, setTypeTimeLeft] = useState(TYPE_MODE_TIME_LIMIT_SECONDS);
+
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [typedAnswer, setTypedAnswer] = useState("");
+  const [typedResult, setTypedResult] = useState<"correct" | "wrong" | null>(
+    null
+  );
+  const [typeTimeLeft, setTypeTimeLeft] = useState(
+    TYPE_MODE_TIME_LIMIT_SECONDS
+  );
+
+  const [feedbackState, setFeedbackState] = useState<
+    "correct" | "incorrect" | null
+  >(null);
+  const [countdown, setCountdown] = useState(0);
 
   const typeInputRef = useRef<HTMLInputElement>(null);
   const typedAnswerRef = useRef("");
-  const wrongContinueTimerRef = useRef<number | null>(null);
+  const mixedDirectionByWordIdRef = useRef<
+    Map<number, Exclude<StudyDirection, "mixed">>
+  >(new Map());
   const typeTimerRef = useRef<number | null>(null);
   const typeTimerIntervalRef = useRef<number | null>(null);
+  const cooldownTimerRef = useRef<number | null>(null);
+  const pendingAnswerRef = useRef<{
+    correct: boolean;
+    answeredMode: StudyMode;
+  } | null>(null);
 
-  const { data: words = [], isLoading: wordsLoading } = trpc.vocabulary.getWords.useQuery(
+  const { data: words = [], isLoading: wordsLoading } =
+    trpc.vocabulary.getWords.useQuery(
+      { folderId },
+      { enabled: isAuthenticated && folderId > 0 }
+    );
+  const { data: folder, isLoading: folderLoading } =
+    trpc.vocabulary.getFolderById.useQuery(
+      { folderId },
+      { enabled: isAuthenticated && folderId > 0 }
+    );
+  const { data: folderProgress } = trpc.vocabulary.getProgress.useQuery(
     { folderId },
     { enabled: isAuthenticated && folderId > 0 }
   );
-  const { data: folder, isLoading: folderLoading } = trpc.vocabulary.getFolderById.useQuery(
-    { folderId },
-    { enabled: isAuthenticated && folderId > 0 }
-  );
+
   const updateProgressMutation = trpc.vocabulary.updateProgress.useMutation();
+
+  const knownByWordId = useMemo(() => {
+    const map = new Map<number, boolean>();
+    (folderProgress?.progress || []).forEach((entry: any) => {
+      map.set(entry.wordId, entry.known === true);
+    });
+    return map;
+  }, [folderProgress]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    params.set("mode", mode);
-    params.set("dir", direction);
-    const query = params.toString();
+    const queryParams = new URLSearchParams(window.location.search);
+    queryParams.set("mode", mode);
+    queryParams.set("dir", direction);
+    const query = queryParams.toString();
     const next = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
     window.history.replaceState({}, "", next);
   }, [mode, direction]);
@@ -126,47 +157,61 @@ export default function Memorize() {
   }, [typedAnswer]);
 
   useEffect(() => {
-    if (words.length > 0) {
-      const shuffled = shuffleArray(words);
-      setWordQueue(shuffled);
-      setSessionTotal(shuffled.length);
-    }
+    if (words.length === 0) return;
+    const shuffled = shuffleArray(words);
+    setRemainingWords(shuffled);
+    setSessionTotal(shuffled.length);
+    setResults([]);
+    setModeStats(INITIAL_MODE_STATS);
+    setSelectedOption(null);
+    setTypedAnswer("");
+    setTypedResult(null);
+    setFeedbackState(null);
+    setCountdown(0);
+    setTypeTimeLeft(TYPE_MODE_TIME_LIMIT_SECONDS);
+    mixedDirectionByWordIdRef.current.clear();
   }, [words]);
 
   useEffect(() => {
     return () => {
-      if (wrongContinueTimerRef.current !== null) {
-        window.clearTimeout(wrongContinueTimerRef.current);
-      }
-      if (typeTimerRef.current !== null) {
+      if (typeTimerRef.current !== null)
         window.clearTimeout(typeTimerRef.current);
-      }
-      if (typeTimerIntervalRef.current !== null) {
+      if (typeTimerIntervalRef.current !== null)
         window.clearInterval(typeTimerIntervalRef.current);
-      }
+      if (cooldownTimerRef.current !== null)
+        window.clearInterval(cooldownTimerRef.current);
     };
   }, []);
 
-  const currentWord = wordQueue[0];
-  const completedWords = Math.max(0, sessionTotal - wordQueue.length);
+  const currentWord = remainingWords[0];
+  const answeredCount = results.length;
+  const correctCount = results.filter(item => item.correct).length;
+  const completedWords = answeredCount;
   const progressPercent =
-    sessionTotal > 0 ? Math.min(100, (completedWords / sessionTotal) * 100) : 0;
+    sessionTotal > 0 ? Math.round((answeredCount / sessionTotal) * 100) : 0;
+  const isSessionDone = remainingWords.length === 0 && results.length > 0;
 
-  const currentDirection = currentWord
-    ? resolveDirection(direction, currentWord.id + completedWords)
-    : "en-uz";
-  const promptText =
-    currentWord
-      ? currentDirection === "en-uz"
-        ? currentWord.english
-        : currentWord.uzbek
-      : "";
-  const answerText =
-    currentWord
-      ? currentDirection === "en-uz"
-        ? currentWord.uzbek
-        : currentWord.english
-      : "";
+  const currentDirection: Exclude<StudyDirection, "mixed"> = useMemo(() => {
+    if (!currentWord) return "en-uz";
+    if (direction !== "mixed") return direction;
+
+    const cached = mixedDirectionByWordIdRef.current.get(currentWord.id);
+    if (cached) return cached;
+
+    const nextDirection = Math.random() < 0.5 ? "en-uz" : "uz-en";
+    mixedDirectionByWordIdRef.current.set(currentWord.id, nextDirection);
+    return nextDirection;
+  }, [currentWord, direction]);
+  const promptText = currentWord
+    ? currentDirection === "en-uz"
+      ? currentWord.english
+      : currentWord.uzbek
+    : "";
+  const answerText = currentWord
+    ? currentDirection === "en-uz"
+      ? currentWord.uzbek
+      : currentWord.english
+    : "";
   const promptSpeechText = currentDirection === "en-uz" ? promptText : null;
   const answerSpeechText = currentDirection === "uz-en" ? answerText : null;
   const optionsContainEnglish = currentDirection === "uz-en";
@@ -174,30 +219,41 @@ export default function Memorize() {
   const testOptions = useMemo(() => {
     if (!currentWord || mode !== "test") return [];
     const correct = answerText;
-    const pool = words.map(word => {
-      const resolved = resolveDirection(direction, word.id + completedWords);
-      return resolved === "en-uz" ? word.uzbek : word.english;
-    });
-    const uniqueDistractors = Array.from(new Set(pool.filter(value => value !== correct)));
-    return shuffleArray(Array.from(new Set([correct, ...shuffleArray(uniqueDistractors).slice(0, 3)])));
-  }, [answerText, completedWords, currentWord, direction, mode, words]);
+    const pool = words.map(word =>
+      currentDirection === "en-uz" ? word.uzbek : word.english
+    );
+    const uniqueDistractors = Array.from(
+      new Set(pool.filter(value => value !== correct))
+    );
+    return shuffleArray(
+      Array.from(
+        new Set([correct, ...shuffleArray(uniqueDistractors).slice(0, 3)])
+      )
+    );
+  }, [answerText, currentDirection, currentWord, mode, words]);
 
   useEffect(() => {
     if (!currentWord) return;
     setSelectedOption(null);
     setTypedAnswer("");
     setTypedResult(null);
-    setPendingWrongMode(null);
     setIsCardReady(false);
     const rafId = requestAnimationFrame(() => setIsCardReady(true));
     return () => cancelAnimationFrame(rafId);
   }, [currentWord?.id, mode]);
 
   useEffect(() => {
-    if (mode !== "type" || !currentWord || pendingWrongMode || typedResult !== null) return;
+    if (
+      mode !== "type" ||
+      !currentWord ||
+      typedResult !== null ||
+      feedbackState !== null ||
+      isSessionDone
+    )
+      return;
     const timer = window.setTimeout(() => typeInputRef.current?.focus(), 80);
     return () => window.clearTimeout(timer);
-  }, [currentWord?.id, mode, pendingWrongMode, typedResult]);
+  }, [currentWord?.id, mode, typedResult, feedbackState, isSessionDone]);
 
   useEffect(() => {
     if (typeTimerRef.current !== null) {
@@ -209,7 +265,13 @@ export default function Memorize() {
       typeTimerIntervalRef.current = null;
     }
 
-    if (mode !== "type" || !currentWord || pendingWrongMode || typedResult !== null) {
+    if (
+      mode !== "type" ||
+      !currentWord ||
+      typedResult !== null ||
+      feedbackState !== null ||
+      isSessionDone
+    ) {
       setTypeTimeLeft(TYPE_MODE_TIME_LIMIT_SECONDS);
       return;
     }
@@ -241,27 +303,141 @@ export default function Memorize() {
         typeTimerIntervalRef.current = null;
       }
     };
-  }, [currentWord?.id, mode, pendingWrongMode, typedResult]);
+  }, [currentWord?.id, mode, typedResult, feedbackState, isSessionDone]);
 
-  const currentModeStats = modeStats[mode];
-  const currentModeAccuracy =
-    currentModeStats.attempted > 0
-      ? Math.round((currentModeStats.correct / currentModeStats.attempted) * 100)
-      : 0;
-
-  const restartSession = () => {
-    const shuffled = shuffleArray(words);
-    setWordQueue(shuffled);
-    setSessionTotal(shuffled.length);
+  const resetForNewWord = () => {
     setSelectedOption(null);
     setTypedAnswer("");
     setTypedResult(null);
-    setPendingWrongMode(null);
-    setTypeTimeLeft(TYPE_MODE_TIME_LIMIT_SECONDS);
-    if (wrongContinueTimerRef.current !== null) {
-      window.clearTimeout(wrongContinueTimerRef.current);
-      wrongContinueTimerRef.current = null;
+  };
+
+  const removeCurrentWordAndStoreResult = (
+    correct: boolean,
+    answeredMode: StudyMode
+  ) => {
+    if (!currentWord) return;
+
+    const wasKnownBefore = knownByWordId.get(currentWord.id) === true;
+
+    if (correct) {
+      updateProgressMutation.mutate({ wordId: currentWord.id, known: true });
+    } else if (wasKnownBefore) {
+      updateProgressMutation.mutate({ wordId: currentWord.id, known: false });
     }
+
+    setModeStats(prev => {
+      const current = prev[answeredMode];
+      return {
+        ...prev,
+        [answeredMode]: {
+          attempted: current.attempted + 1,
+          correct: current.correct + (correct ? 1 : 0),
+        },
+      };
+    });
+
+    setResults(prev => [...prev, { word: currentWord, correct }]);
+    setRemainingWords(prev => prev.slice(1));
+    resetForNewWord();
+  };
+
+  const finalizePendingAnswer = () => {
+    const pendingAnswer = pendingAnswerRef.current;
+    if (!pendingAnswer) return;
+    pendingAnswerRef.current = null;
+    setFeedbackState(null);
+    setCountdown(0);
+    removeCurrentWordAndStoreResult(
+      pendingAnswer.correct,
+      pendingAnswer.answeredMode
+    );
+  };
+
+  const startAnswerCooldown = (correct: boolean, answeredMode: StudyMode) => {
+    if (cooldownTimerRef.current !== null) {
+      window.clearInterval(cooldownTimerRef.current);
+      cooldownTimerRef.current = null;
+    }
+    pendingAnswerRef.current = { correct, answeredMode };
+    setFeedbackState(correct ? "correct" : "incorrect");
+    setCountdown(CORRECT_COOLDOWN_SECONDS);
+
+    cooldownTimerRef.current = window.setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          if (cooldownTimerRef.current !== null) {
+            window.clearInterval(cooldownTimerRef.current);
+            cooldownTimerRef.current = null;
+          }
+          finalizePendingAnswer();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const handleAnswer = (correct: boolean, answeredMode: StudyMode = mode) => {
+    if (!currentWord || feedbackState !== null) return;
+    startAnswerCooldown(correct, answeredMode);
+  };
+
+  const submitTypedAnswer = (value: string) => {
+    if (!currentWord || feedbackState !== null || typedResult !== null) return;
+
+    const correct = normalizeAnswer(value) === normalizeAnswer(answerText);
+    setTypedResult(correct ? "correct" : "wrong");
+    startAnswerCooldown(correct, "type");
+  };
+
+  const handleCardClick = () => {
+    if (feedbackState === null) return;
+    if (cooldownTimerRef.current !== null) {
+      window.clearInterval(cooldownTimerRef.current);
+      cooldownTimerRef.current = null;
+    }
+    finalizePendingAnswer();
+  };
+
+  const restartSession = () => {
+    const shuffled = shuffleArray(words);
+    setRemainingWords(shuffled);
+    setSessionTotal(shuffled.length);
+    setResults([]);
+    setModeStats(INITIAL_MODE_STATS);
+    setFeedbackState(null);
+    setCountdown(0);
+    setTypeTimeLeft(TYPE_MODE_TIME_LIMIT_SECONDS);
+    resetForNewWord();
+    mixedDirectionByWordIdRef.current.clear();
+
+    if (cooldownTimerRef.current !== null) {
+      window.clearInterval(cooldownTimerRef.current);
+      cooldownTimerRef.current = null;
+    }
+    pendingAnswerRef.current = null;
+  };
+
+  const retryIncorrect = () => {
+    const incorrectWords = results
+      .filter(item => !item.correct)
+      .map(item => item.word);
+    if (incorrectWords.length === 0) return;
+    const shuffled = shuffleArray(incorrectWords);
+    setRemainingWords(shuffled);
+    setSessionTotal(shuffled.length);
+    setResults([]);
+    setModeStats(INITIAL_MODE_STATS);
+    setFeedbackState(null);
+    setCountdown(0);
+    setTypeTimeLeft(TYPE_MODE_TIME_LIMIT_SECONDS);
+    resetForNewWord();
+    mixedDirectionByWordIdRef.current.clear();
+    if (cooldownTimerRef.current !== null) {
+      window.clearInterval(cooldownTimerRef.current);
+      cooldownTimerRef.current = null;
+    }
+    pendingAnswerRef.current = null;
   };
 
   const handleModeChange = (nextMode: StudyMode) => {
@@ -269,95 +445,103 @@ export default function Memorize() {
     setDirection(getDefaultDirectionForMode(nextMode));
   };
 
-  const finalizeAnswer = (known: boolean, answeredMode: StudyMode) => {
-    if (!currentWord) return;
-    updateProgressMutation.mutate({ wordId: currentWord.id, known });
-    setWordQueue(prev => {
-      if (prev.length === 0) return prev;
-      const [first, ...rest] = prev;
-      return known ? rest : [...rest, first];
-    });
-    setPendingWrongMode(null);
-    setSelectedOption(null);
-    setTypedAnswer("");
-    setTypedResult(null);
-  };
-
-  const handleAnswer = (known: boolean, answeredMode: StudyMode = mode) => {
-    if (!currentWord || pendingWrongMode) return;
-    setModeStats(prev => {
-      const current = prev[answeredMode];
-      return {
-        ...prev,
-        [answeredMode]: {
-          attempted: current.attempted + 1,
-          correct: current.correct + (known ? 1 : 0),
-        },
-      };
-    });
-
-    if (!known) {
-      setPendingWrongMode(answeredMode);
-      if (wrongContinueTimerRef.current !== null) {
-        window.clearTimeout(wrongContinueTimerRef.current);
-      }
-      wrongContinueTimerRef.current = window.setTimeout(() => {
-        finalizeAnswer(false, answeredMode);
-      }, 5000);
-      return;
-    }
-
-    finalizeAnswer(true, answeredMode);
-  };
-
-  const submitTypedAnswer = (value: string) => {
-    if (pendingWrongMode || typedResult !== null) return;
-
-    const known = normalizeAnswer(value) === normalizeAnswer(answerText);
-    setTypedResult(known ? "correct" : "wrong");
-    window.setTimeout(() => handleAnswer(known, "type"), 220);
-  };
-
-  const continueAfterWrong = () => {
-    if (!pendingWrongMode) return;
-    if (wrongContinueTimerRef.current !== null) {
-      window.clearTimeout(wrongContinueTimerRef.current);
-      wrongContinueTimerRef.current = null;
-    }
-    finalizeAnswer(false, pendingWrongMode);
-  };
-
   if (folderLoading || wordsLoading) {
     return (
       <div className="min-h-screen w-full app-bg flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-[#0EA5FF]" />
+        <Loader2 className="w-8 h-8 animate-spin text-[var(--accent)]" />
       </div>
     );
   }
 
   if (!folder || words.length === 0) {
     return (
-      <div className="min-h-screen w-full app-bg text-white flex flex-col items-center justify-center">
-        <p className="text-[#A6B0BE] mb-4">No words in this folder</p>
-        <Button onClick={() => setLocation(`/folder/${folderId}`)} className="bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full">
+      <div className="min-h-screen w-full app-bg scholar-title flex flex-col items-center justify-center">
+        <p className="scholar-muted mb-4">No words in this folder</p>
+        <Button
+          onClick={() => setLocation(`/folder/${folderId}`)}
+          className="bg-[var(--accent)] hover:bg-[var(--accent-strong)] scholar-title rounded-full"
+        >
           Go Back
         </Button>
       </div>
     );
   }
 
-  if (!currentWord) {
+  if (isSessionDone) {
+    const correctCountDone = results.filter(item => item.correct).length;
+    const incorrectCount = results.length - correctCountDone;
+    const correctPct =
+      results.length > 0
+        ? Math.round((correctCountDone / results.length) * 100)
+        : 0;
+    const incorrectPct = results.length > 0 ? 100 - correctPct : 0;
+    const incorrectWords = results
+      .filter(item => !item.correct)
+      .map(item => item.word.english);
+    const correctWords = results
+      .filter(item => item.correct)
+      .map(item => item.word.english);
+    const removedKnownCount = results.filter(
+      item => !item.correct && knownByWordId.get(item.word.id) === true
+    ).length;
+
     return (
-      <div className="flex items-center justify-center min-h-screen w-full px-6 app-bg">
-        <div className="text-center">
-          <p className="text-white text-xl font-bold mb-4">Memorize completed</p>
-          <p className="text-[#A6B0BE] mb-8">Great job. Your correct answers were saved as learned.</p>
-          <div className="flex items-center justify-center gap-3">
-            <Button onClick={restartSession} className="bg-[#10B981] hover:bg-[#0ea073] text-white rounded-full">
-              Start Again
+      <div className="app-bg min-h-screen flex items-center justify-center px-4">
+        <div className="memorize-card w-full max-w-3xl rounded-3xl p-6 sm:p-8">
+          <h2 className="font-display text-3xl font-semibold scholar-title text-center">
+            Session Complete
+          </h2>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <div className="memorize-glass-panel rounded-2xl p-4">
+              <p className="scholar-title font-semibold">Correct</p>
+              <p className="mt-1 text-2xl scholar-title">
+                {correctCountDone} / {results.length} ({correctPct}%)
+              </p>
+            </div>
+            <div className="memorize-glass-panel rounded-2xl p-4">
+              <p className="scholar-title font-semibold">Incorrect</p>
+              <p className="mt-1 text-2xl scholar-title">
+                {incorrectCount} / {results.length} ({incorrectPct}%)
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-2 text-sm scholar-muted">
+            <p>Removed from known: {removedKnownCount}</p>
+            <p>
+              Still unknown: {Math.max(0, incorrectCount - removedKnownCount)}
+            </p>
+          </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <div className="memorize-glass-panel rounded-2xl p-4">
+              <p className="mb-2 scholar-title font-medium">Correct words</p>
+              <p className="text-sm scholar-muted">
+                {correctWords.length > 0 ? correctWords.join(", ") : "-"}
+              </p>
+            </div>
+            <div className="memorize-glass-panel rounded-2xl p-4">
+              <p className="mb-2 scholar-title font-medium">Incorrect words</p>
+              <p className="text-sm scholar-muted">
+                {incorrectWords.length > 0 ? incorrectWords.join(", ") : "-"}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Button
+              onClick={retryIncorrect}
+              disabled={incorrectCount === 0}
+              className="rounded-full bg-[var(--accent)] hover:bg-[var(--accent-strong)] scholar-title"
+            >
+              Retry incorrect
             </Button>
-            <Button onClick={() => setLocation(`/folder/${folderId}`)} className="bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full">
-              Back
+            <Button
+              onClick={() => setLocation(`/folder/${folderId}`)}
+              variant="outline"
+              className="rounded-full border-[var(--surface-border)] scholar-title hover:bg-[var(--accent-muted)]"
+            >
+              Done
             </Button>
           </div>
         </div>
@@ -369,38 +553,91 @@ export default function Memorize() {
     <div className="memorize-page flex flex-col min-h-screen w-full app-bg text-foreground">
       <div className="page-navbar sticky top-0 z-40">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <button onClick={() => setLocation(`/folder/${folderId}`)} className="glass-icon-button" type="button" aria-label="Back">
+          <button
+            onClick={() => setLocation(`/folder/${folderId}`)}
+            className="glass-icon-button"
+            type="button"
+            aria-label="Back"
+          >
             <ChevronLeft className="h-4 w-4" />
           </button>
           <div className="min-w-0 flex-1 text-center">
-            <h1 className="truncate font-display text-base text-strong">{folder.name}</h1>
+            <h1 className="truncate font-display text-base text-strong">
+              {folder.name}
+            </h1>
             <p className="text-[11px] text-dim">Memorize</p>
           </div>
           <div className="flex items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button type="button" className="page-navbar-pill rounded-full px-3 py-1.5 text-xs">
+                <button
+                  type="button"
+                  className="page-navbar-pill rounded-full px-3 py-1.5 text-xs"
+                >
                   {mode === "test" ? "Test" : "Type"}
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="glass-dropdown min-w-36 rounded-2xl p-1.5">
-                <DropdownMenuItem onClick={() => handleModeChange("test")} className="glass-dropdown-item">Test</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleModeChange("type")} className="glass-dropdown-item">Type</DropdownMenuItem>
+              <DropdownMenuContent
+                align="end"
+                className="glass-dropdown min-w-36 rounded-2xl p-1.5"
+              >
+                <DropdownMenuItem
+                  onClick={() => handleModeChange("test")}
+                  className="glass-dropdown-item"
+                >
+                  Test
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleModeChange("type")}
+                  className="glass-dropdown-item"
+                >
+                  Type
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button type="button" className="page-navbar-pill rounded-full px-3 py-1.5 text-xs">
-                  {direction === "en-uz" ? "ENG" : direction === "uz-en" ? "UZB" : "Mix"}
+                <button
+                  type="button"
+                  className="page-navbar-pill rounded-full px-3 py-1.5 text-xs"
+                >
+                  {direction === "en-uz"
+                    ? "ENG"
+                    : direction === "uz-en"
+                      ? "UZB"
+                      : "Mix"}
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="glass-dropdown min-w-36 rounded-2xl p-1.5">
-                <DropdownMenuItem onClick={() => setDirection("en-uz")} className="glass-dropdown-item">ENG {"->"} UZB</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setDirection("uz-en")} className="glass-dropdown-item">UZB {"->"} ENG</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setDirection("mixed")} className="glass-dropdown-item">Mixed</DropdownMenuItem>
+              <DropdownMenuContent
+                align="end"
+                className="glass-dropdown min-w-36 rounded-2xl p-1.5"
+              >
+                <DropdownMenuItem
+                  onClick={() => setDirection("en-uz")}
+                  className="glass-dropdown-item"
+                >
+                  ENG {"->"} UZB
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setDirection("uz-en")}
+                  className="glass-dropdown-item"
+                >
+                  UZB {"->"} ENG
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setDirection("mixed")}
+                  className="glass-dropdown-item"
+                >
+                  Mixed
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <button onClick={restartSession} className="glass-icon-button" type="button" aria-label="Restart">
+            <button
+              onClick={restartSession}
+              className="glass-icon-button"
+              type="button"
+              aria-label="Restart"
+            >
               <RotateCcw className="h-4 w-4" />
             </button>
           </div>
@@ -408,21 +645,34 @@ export default function Memorize() {
       </div>
 
       <div className="mx-auto w-full max-w-6xl px-4 pt-3 sm:px-6">
-        <div className="rounded-2xl border border-white/10 bg-[#111827]/82 px-4 py-3">
-          <div className="mb-2 flex items-center justify-between gap-3 text-xs text-[#A6B0BE]">
-            <span>{completedWords}/{sessionTotal}</span>
-            <button type="button" onClick={() => setShowStats(prev => !prev)} className="transition hover:text-white">
+        <div className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-4 py-3">
+          <div className="mb-2 flex items-center justify-between gap-3 text-xs scholar-muted">
+            <span>
+              {answeredCount}/{sessionTotal}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowStats(prev => !prev)}
+              className="transition hover:text-[var(--text-primary)]"
+            >
               {showStats ? "Hide stats" : "Show stats"}
             </button>
-            <span>{mode === "test" ? "Test" : "Type"} {currentModeAccuracy}%</span>
+            <span>✓ {correctCount} correct</span>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-[#15202B]">
-            <div className="h-full rounded-full bg-[#0EA5FF] transition-all" style={{ width: `${progressPercent}%` }} />
+          <div className="h-2 overflow-hidden rounded-full bg-[color-mix(in_srgb,_var(--text-primary)_12%,_transparent)]">
+            <div
+              className="h-full rounded-full bg-[var(--accent)] transition-all"
+              style={{ width: `${progressPercent}%` }}
+            />
           </div>
           {showStats ? (
-            <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-[#A6B0BE]">
-              <span className="text-white">Test {modeStats.test.correct}/{modeStats.test.attempted}</span>
-              <span className="text-white">Type {modeStats.type.correct}/{modeStats.type.attempted}</span>
+            <div className="mt-2 flex flex-wrap gap-2 text-[11px] scholar-muted">
+              <span className="scholar-title">
+                Test {modeStats.test.correct}/{modeStats.test.attempted}
+              </span>
+              <span className="scholar-title">
+                Type {modeStats.type.correct}/{modeStats.type.attempted}
+              </span>
             </div>
           ) : null}
         </div>
@@ -430,20 +680,24 @@ export default function Memorize() {
 
       <div className="flex flex-1 items-center justify-center px-4 py-3 sm:px-6 sm:py-10">
         <div
-          onClick={() => {
-            if (pendingWrongMode) continueAfterWrong();
-          }}
-          className="memorize-card relative flex w-full max-w-3xl min-h-[360px] flex-col justify-between rounded-3xl p-4 sm:min-h-[460px] md:min-h-[560px] sm:p-8"
+          onClick={handleCardClick}
+          className="memorize-card relative flex w-full max-w-3xl h-[360px] sm:h-[460px] md:h-[560px] flex-col justify-between rounded-3xl p-4 sm:p-8"
           style={{
-            transform: isCardReady ? "translateY(0) scale(1)" : "translateY(4px) scale(0.996)",
+            transform: isCardReady
+              ? "translateY(0) scale(1)"
+              : "translateY(4px) scale(0.996)",
             opacity: isCardReady ? 1 : 0.985,
             transition: "transform 0.18s ease-out, opacity 0.16s ease-out",
+            cursor: feedbackState ? "pointer" : "default",
+            overflow: "hidden",
           }}
         >
           <div className="flex flex-1 items-center justify-center">
             <div className="w-full text-center">
-              <p className="mb-3 text-xs uppercase tracking-[0.3em] text-[#A6B0BE]">Word {completedWords + 1} of {sessionTotal}</p>
-              <p className="mb-2 text-sm text-[#A6B0BE]">
+              <p className="mb-3 text-xs uppercase tracking-[0.3em] scholar-muted">
+                Word {completedWords + 1} of {sessionTotal}
+              </p>
+              <p className="mb-2 text-sm scholar-muted">
                 {mode === "test"
                   ? "Choose the correct answer"
                   : "Type the translation"}
@@ -454,97 +708,113 @@ export default function Memorize() {
                 </p>
               ) : null}
               <div className="flex items-center justify-center gap-2">
-                <h2 className="text-center text-[1.9rem] font-bold leading-tight text-white sm:text-4xl">{promptText}</h2>
+                <h2 className="text-center text-[1.9rem] font-bold leading-tight scholar-title sm:text-4xl">
+                  {promptText}
+                </h2>
                 {promptSpeechText ? (
-                  <EnglishSpeakButton text={promptSpeechText} className="bg-white/10 text-white hover:bg-white/15" />
+                  <EnglishSpeakButton
+                    text={promptSpeechText}
+                    className="bg-white/10 scholar-title hover:bg-white/15"
+                  />
                 ) : null}
               </div>
             </div>
           </div>
 
-          {mode === "test" ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {testOptions.map(option => {
-                const isSelected = selectedOption === option;
-                const isCorrect = option === answerText;
-                let optionClass = "memorize-glass-panel hover:bg-white/10";
-                if (selectedOption) {
-                  if (isCorrect) optionClass = "bg-[#10B981]";
-                  else if (isSelected) optionClass = "bg-[#EF4444]";
-                  else optionClass = "memorize-glass-panel opacity-70";
-                }
-
-                return (
-                  <div
-                    key={option}
-                    className={`flex min-h-14 items-center gap-2 rounded-2xl px-4 py-3 text-white transition ${optionClass}`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (selectedOption || pendingWrongMode) return;
-                        setSelectedOption(option);
-                        window.setTimeout(() => handleAnswer(option === answerText, "test"), 220);
-                      }}
-                      disabled={!!selectedOption || !!pendingWrongMode}
-                      className="flex-1 text-left"
-                    >
-                      {option}
-                    </button>
-                    {optionsContainEnglish ? (
-                      <EnglishSpeakButton text={option} className="bg-black/10 text-white hover:bg-black/20" />
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <input
-                ref={typeInputRef}
-                value={typedAnswer}
-                onChange={e => setTypedAnswer(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    submitTypedAnswer(typedAnswer);
+          <div className="flex flex-col gap-3">
+            {mode === "test" ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {testOptions.map(option => {
+                  const isSelected = selectedOption === option;
+                  const isRightOption = option === answerText;
+                  let optionClass = "memorize-glass-panel hover:bg-white/10";
+                  if (selectedOption) {
+                    if (isRightOption) optionClass = "bg-[#10B981]";
+                    else if (isSelected) optionClass = "bg-[#EF4444]";
+                    else optionClass = "memorize-glass-panel opacity-70";
                   }
-                }}
-                placeholder="Type your answer"
-                className="memorize-glass-panel w-full rounded-2xl px-4 py-3 text-white outline-none focus:border-[#0EA5FF]"
-                disabled={!!pendingWrongMode || typedResult !== null}
-              />
-              <Button
-                onClick={() => {
-                  submitTypedAnswer(typedAnswer);
-                }}
-                disabled={!!pendingWrongMode || !typedAnswer.trim() || typedResult !== null}
-                className="w-full rounded-2xl bg-[#0EA5FF] hover:bg-[#0c8fd9] py-3 text-white"
-              >
-                Check Answer
-              </Button>
-              {typedResult ? (
-                <div className={`rounded-2xl px-4 py-3 text-sm ${typedResult === "correct" ? "bg-[#10B981]" : "bg-[#EF4444]"} text-white`}>
-                  {typedResult === "correct" ? (
-                    "Correct"
-                  ) : (
-                    <div className="flex items-center justify-between gap-3">
-                      <span>{`Wrong. Correct: ${answerText}`}</span>
-                      {answerSpeechText ? (
-                        <EnglishSpeakButton text={answerSpeechText} className="border-white/20 bg-white/10 text-white hover:bg-white/20" />
+
+                  return (
+                    <div
+                      key={option}
+                      className={`flex min-h-14 items-center gap-2 rounded-2xl px-4 py-3 scholar-title transition ${optionClass}`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (selectedOption || feedbackState !== null) return;
+                          setSelectedOption(option);
+                          handleAnswer(option === answerText, "test");
+                        }}
+                        disabled={!!selectedOption || feedbackState !== null}
+                        className="flex-1 text-left"
+                      >
+                        {option}
+                      </button>
+                      {optionsContainEnglish ? (
+                        <EnglishSpeakButton
+                          text={option}
+                          className="bg-black/10 scholar-title hover:bg-black/20"
+                        />
                       ) : null}
                     </div>
-                  )}
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <input
+                  ref={typeInputRef}
+                  value={typedAnswer}
+                  onChange={e => setTypedAnswer(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      submitTypedAnswer(typedAnswer);
+                    }
+                  }}
+                  placeholder="Type your answer"
+                  className="memorize-glass-panel w-full rounded-2xl px-4 py-3 scholar-title outline-none focus:border-[var(--accent)]"
+                  disabled={feedbackState !== null || typedResult !== null}
+                />
+                <Button
+                  onClick={() => submitTypedAnswer(typedAnswer)}
+                  disabled={
+                    feedbackState !== null ||
+                    !typedAnswer.trim() ||
+                    typedResult !== null
+                  }
+                  className="w-full rounded-2xl bg-[var(--accent)] hover:bg-[var(--accent-strong)] py-3 scholar-title"
+                >
+                  Check Answer
+                </Button>
+                {typedResult ? (
+                  <div
+                    className={`rounded-2xl px-4 py-3 text-sm ${typedResult === "correct" ? "bg-[#10B981]" : "bg-[#EF4444]"} scholar-title`}
+                  >
+                    {typedResult === "correct"
+                      ? "Correct"
+                      : `Wrong. Correct: ${answerText}`}
+                  </div>
+                ) : null}
+              </div>
+            )}
+            <div className="h-11">
+              {feedbackState ? (
+                <div
+                  className={`rounded-xl px-3 py-2 text-center text-sm scholar-title ${
+                    feedbackState === "correct"
+                      ? "border border-[#10B981]/40 bg-[#10B981]/15"
+                      : "border border-[#EF4444]/40 bg-[#EF4444]/15"
+                  }`}
+                >
+                  {feedbackState === "correct" ? "✓ Correct!" : "✗ Incorrect!"}{" "}
+                  Next in {countdown}...
+                  <span className="ml-1 text-xs opacity-70">(tap to skip)</span>
                 </div>
               ) : null}
             </div>
-          )}
-
-          {pendingWrongMode ? (
-            <div className="mt-3 rounded-xl border border-[#EF4444]/40 bg-[#EF4444]/15 px-3 py-2 text-center text-sm text-white">
-              Wrong answer. Tap anywhere on this card to continue, or wait 5 seconds.
-            </div>
-          ) : null}
+          </div>
         </div>
       </div>
     </div>

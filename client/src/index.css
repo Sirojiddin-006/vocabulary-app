@@ -1,6 +1,9 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "./styles/themes.css";
+@import "./styles/globals.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -472,13 +475,17 @@
     position: absolute;
     inset: 0;
     border-radius: 1.75rem;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--surface-border);
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03)),
-      rgba(17, 24, 39, 0.42);
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--text-primary) 10%, transparent),
+        color-mix(in srgb, var(--text-primary) 3%, transparent)
+      ),
+      rgba(var(--surface-rgb), 0.45);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.12),
-      0 18px 36px rgba(15, 23, 42, 0.18);
+      inset 0 1px 0 color-mix(in srgb, white 34%, transparent),
+      0 18px 36px color-mix(in srgb, black 20%, transparent);
     backdrop-filter: blur(18px) saturate(155%);
     -webkit-backdrop-filter: blur(18px) saturate(155%);
     pointer-events: none;
@@ -496,14 +503,18 @@
 
   .memorize-card {
     background:
-      radial-gradient(circle at top left, rgba(255, 255, 255, 0.16), transparent 34%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
-      rgba(21, 32, 43, 0.8);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+      radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 16%, transparent), transparent 38%),
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, white 12%, transparent),
+        color-mix(in srgb, black 4%, transparent)
+      ),
+      rgba(var(--surface-rgb), 0.9);
+    border: 1px solid var(--surface-border);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.14),
-      inset 0 -1px 0 rgba(255, 255, 255, 0.05),
-      0 24px 55px rgba(15, 23, 42, 0.34);
+      inset 0 1px 0 color-mix(in srgb, white 36%, transparent),
+      inset 0 -1px 0 color-mix(in srgb, black 10%, transparent),
+      0 24px 55px color-mix(in srgb, black 24%, transparent);
     backdrop-filter: blur(22px) saturate(165%);
     -webkit-backdrop-filter: blur(22px) saturate(165%);
     transform-style: preserve-3d;
@@ -511,19 +522,23 @@
 
   .memorize-preview-card {
     opacity: 0.76;
-    filter: saturate(0.92) brightness(0.94);
+    filter: saturate(0.94) brightness(0.98);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.12),
-      inset 0 -1px 0 rgba(255, 255, 255, 0.04),
-      0 14px 32px rgba(15, 23, 42, 0.2);
+      inset 0 1px 0 color-mix(in srgb, white 30%, transparent),
+      inset 0 -1px 0 color-mix(in srgb, black 8%, transparent),
+      0 14px 32px color-mix(in srgb, black 20%, transparent);
   }
 
   .memorize-glass-panel {
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04)),
-      rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, white 14%, transparent),
+        color-mix(in srgb, black 5%, transparent)
+      ),
+      rgba(var(--surface-elevated-rgb), 0.55);
+    border: 1px solid var(--surface-border);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 36%, transparent);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
   }

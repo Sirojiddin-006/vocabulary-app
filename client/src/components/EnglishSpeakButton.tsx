@@ -8,7 +8,10 @@ type Subscriber = (activeId: string | null) => void;
 const subscribers = new Set<Subscriber>();
 
 let activeButtonId: string | null = null;
-let activeUtterance: SpeechSynthesisUtterance | null = null;
+let activeAudio: HTMLAudioElement | null = null;
+const audioUrlCache = new Map<string, string>();
+const DEFAULT_VOICE = "nova";
+const DEFAULT_SPEED = 0.95;
 
 function notifySubscribers() {
   subscribers.forEach(subscriber => subscriber(activeButtonId));
@@ -19,22 +22,53 @@ function setActiveButtonId(nextId: string | null) {
   notifySubscribers();
 }
 
-function stopActiveSpeech() {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-  window.speechSynthesis.cancel();
-  activeUtterance = null;
+function stopActiveAudio() {
+  if (!activeAudio) {
+    setActiveButtonId(null);
+    return;
+  }
+  activeAudio.pause();
+  activeAudio.currentTime = 0;
+  activeAudio = null;
   setActiveButtonId(null);
 }
 
-function pickEnglishVoice() {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) return null;
-  const voices = window.speechSynthesis.getVoices();
-  return (
-    voices.find(voice => voice.lang.toLowerCase().startsWith("en-us")) ??
-    voices.find(voice => voice.lang.toLowerCase().startsWith("en-gb")) ??
-    voices.find(voice => voice.lang.toLowerCase().startsWith("en")) ??
-    null
-  );
+function stopBrowserTtsFallback() {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
+}
+
+async function fetchTtsAudioUrl(text: string) {
+  const cacheKey = `${DEFAULT_VOICE}:${DEFAULT_SPEED}:${text}`;
+  const cached = audioUrlCache.get(cacheKey);
+  if (cached) return cached;
+
+  const response = await fetch("/api/tts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text,
+      voice: DEFAULT_VOICE,
+      speed: DEFAULT_SPEED,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error("TTS request failed");
+  }
+
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  audioUrlCache.set(cacheKey, objectUrl);
+  return objectUrl;
+}
+
+function speakFallback(text: string) {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "en-US";
+  utterance.rate = DEFAULT_SPEED;
+  window.speechSynthesis.speak(utterance);
 }
 
 function looksEnglish(text: string) {
@@ -53,14 +87,10 @@ export function EnglishSpeakButton({
   iconClassName,
 }: EnglishSpeakButtonProps) {
   const buttonId = useId();
-  const [isSupported, setIsSupported] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    setIsSupported("speechSynthesis" in window);
-
     const subscriber: Subscriber = (currentActiveId) => {
       setIsSpeaking(currentActiveId === buttonId);
     };
@@ -70,10 +100,13 @@ export function EnglishSpeakButton({
 
     return () => {
       subscribers.delete(subscriber);
+      if (activeButtonId === buttonId) {
+        stopActiveAudio();
+      }
     };
   }, [buttonId]);
 
-  if (!isSupported || !text.trim() || !looksEnglish(text)) {
+  if (!text.trim() || !looksEnglish(text)) {
     return null;
   }
 
@@ -89,53 +122,61 @@ export function EnglishSpeakButton({
         className
       )}
       onClick={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
+        void (async () => {
+          event.preventDefault();
+          event.stopPropagation();
 
-        if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+          if (typeof window === "undefined") return;
 
-        const synthesis = window.speechSynthesis;
-        const nextText = text.trim();
+          const nextText = text.trim();
+          if (!nextText) return;
 
-        if (activeButtonId === buttonId && synthesis.speaking) {
-          stopActiveSpeech();
-          return;
-        }
+          if (activeButtonId === buttonId && activeAudio && !activeAudio.paused) {
+            stopActiveAudio();
+            stopBrowserTtsFallback();
+            return;
+          }
 
-        synthesis.cancel();
+          stopActiveAudio();
+          stopBrowserTtsFallback();
+          setIsLoading(true);
 
-        const utterance = new SpeechSynthesisUtterance(nextText);
-        utterance.lang = "en-US";
-        utterance.rate = 0.95;
-        const voice = pickEnglishVoice();
-        if (voice) {
-          utterance.voice = voice;
-        }
+          try {
+            const audioUrl = await fetchTtsAudioUrl(nextText);
+            const audio = new Audio(audioUrl);
+            activeAudio = audio;
+            setActiveButtonId(buttonId);
 
-        activeUtterance = utterance;
-        setActiveButtonId(buttonId);
+            audio.onended = () => {
+              if (activeAudio !== audio) return;
+              activeAudio = null;
+              setActiveButtonId(null);
+            };
 
-        utterance.onend = () => {
-          if (activeUtterance !== utterance) return;
-          activeUtterance = null;
-          setActiveButtonId(null);
-        };
+            audio.onerror = () => {
+              if (activeAudio !== audio) return;
+              activeAudio = null;
+              setActiveButtonId(null);
+            };
 
-        utterance.onerror = () => {
-          if (activeUtterance !== utterance) return;
-          activeUtterance = null;
-          setActiveButtonId(null);
-        };
-
-        synthesis.speak(utterance);
+            await audio.play();
+          } catch (error) {
+            console.error("TTS error:", error);
+            setActiveButtonId(null);
+            speakFallback(nextText);
+          } finally {
+            setIsLoading(false);
+          }
+        })();
       }}
+      disabled={isLoading}
     >
-      {isSpeaking ? (
+      {isLoading ? (
         <>
           <Loader2 className={cn("h-4 w-4 animate-spin", iconClassName)} />
-          <span className="sr-only">Speaking</span>
+          <span className="sr-only">Loading audio</span>
         </>
-      ) : activeButtonId === buttonId ? (
+      ) : isSpeaking ? (
         <VolumeX className={cn("h-4 w-4", iconClassName)} />
       ) : (
         <Volume2 className={cn("h-4 w-4", iconClassName)} />

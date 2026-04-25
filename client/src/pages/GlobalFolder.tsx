@@ -45,18 +45,18 @@ export default function GlobalFolder() {
   if (folderLoading) {
     return (
       <div className="min-h-screen w-full app-bg flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-[#0EA5FF]" />
+        <Loader2 className="w-8 h-8 animate-spin text-[var(--accent)]" />
       </div>
     );
   }
 
   if (!folder) {
     return (
-      <div className="min-h-screen w-full app-bg text-white flex flex-col items-center justify-center">
-        <p className="text-[#A6B0BE] mb-4">Folder not found</p>
+      <div className="min-h-screen w-full app-bg scholar-title flex flex-col items-center justify-center">
+        <p className="scholar-muted mb-4">Folder not found</p>
         <Button
           onClick={() => setLocation("/global")}
-          className="bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full"
+          className="bg-[var(--accent)] hover:bg-[var(--accent-strong)] scholar-title rounded-full"
         >
           Go Back
         </Button>
@@ -82,20 +82,20 @@ export default function GlobalFolder() {
       </div>
 
       <div className="mx-auto w-full max-w-6xl px-6 py-5">
-        <div className="rounded-2xl border border-white/10 bg-[#111827] px-6 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-[#A6B0BE]">{words.length} words</span>
+        <div className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <span className="scholar-muted">{words.length} words</span>
           <div className="flex flex-col sm:flex-row gap-2">
             <Button
               onClick={() => setLocation(`/global/review/${folderId}`)}
               variant="outline"
-              className="border-white/10 text-white hover:bg-white/5 rounded-full text-sm"
+              className="border-[var(--surface-border)] scholar-title hover:bg-[var(--accent-muted)] rounded-full text-sm"
             >
               <RotateCcw className="w-4 h-4 mr-2" />
               Review
             </Button>
             <Button
               onClick={() => setLocation(`/global/memorize/${folderId}`)}
-              className="bg-[#10B981] hover:bg-[#0ea073] text-white rounded-full text-sm"
+              className="bg-[color-mix(in_srgb,_var(--accent)_55%,_#10B981)] hover:bg-[color-mix(in_srgb,_var(--accent-strong)_45%,_#0b7a57)] scholar-title rounded-full text-sm"
             >
               <Play className="w-4 h-4 mr-2" />
               Memorize
@@ -110,15 +110,15 @@ export default function GlobalFolder() {
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Search words..."
-            className="bg-[#0B0E14] border-white/10 text-white placeholder-[#A6B0BE]"
+            className="bg-[var(--surface)] border-[var(--surface-border)] scholar-title placeholder:text-[var(--text-secondary)]"
           />
           <div className="flex gap-2">
             <Button
               onClick={() => setSort("az")}
               variant="outline"
               className={sort === "az"
-                ? "border-[#0EA5FF] text-[#0EA5FF] bg-[#0EA5FF]/10"
-                : "border-white/10 text-white hover:bg-white/5"}
+                ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/10"
+                : "border-[var(--surface-border)] scholar-title hover:bg-[var(--accent-muted)]"}
             >
               A - Z
             </Button>
@@ -126,8 +126,8 @@ export default function GlobalFolder() {
               onClick={() => setSort("za")}
               variant="outline"
               className={sort === "za"
-                ? "border-[#0EA5FF] text-[#0EA5FF] bg-[#0EA5FF]/10"
-                : "border-white/10 text-white hover:bg-white/5"}
+                ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/10"
+                : "border-[var(--surface-border)] scholar-title hover:bg-[var(--accent-muted)]"}
             >
               Z - A
             </Button>
@@ -138,29 +138,29 @@ export default function GlobalFolder() {
       <div className="flex-1 mx-auto w-full max-w-6xl px-6 py-4 pb-28">
         {wordsLoading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-6 h-6 animate-spin text-[#0EA5FF]" />
+            <Loader2 className="w-6 h-6 animate-spin text-[var(--accent)]" />
           </div>
         ) : filteredWords.length === 0 ? (
-          <div className="text-center py-12 rounded-2xl border border-white/10 bg-[#0F1720]">
-            <p className="text-[#A6B0BE] mb-4">No words found.</p>
+          <div className="text-center py-12 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)]">
+            <p className="scholar-muted mb-4">No words found.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {filteredWords.map(word => (
               <Card
                 key={word.id}
-                className="bg-[#111827] border border-white/10 p-4 card-hover-glow"
+                className="bg-[var(--surface)] border border-[var(--surface-border)] p-4 card-hover-glow"
               >
                 <div className="flex items-center gap-2">
-                  <h3 className="text-white font-semibold">{word.english}</h3>
+                  <h3 className="scholar-title font-semibold">{word.english}</h3>
                   <EnglishSpeakButton text={word.english} />
                 </div>
-                <p className="text-[#A6B0BE] text-sm">{word.uzbek}</p>
+                <p className="scholar-muted text-sm">{word.uzbek}</p>
                 {word.description && (
-                  <p className="text-[#C9D3E0] text-xs mt-2">{word.description}</p>
+                  <p className="scholar-muted text-xs mt-2">{word.description}</p>
                 )}
                 {word.example && (
-                  <p className="text-[#A6B0BE] text-xs mt-2 italic">"{word.example}"</p>
+                  <p className="scholar-muted text-xs mt-2 italic">"{word.example}"</p>
                 )}
               </Card>
             ))}

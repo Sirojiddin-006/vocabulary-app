@@ -252,18 +252,18 @@ export default function Review() {
   if (folderLoading || wordsLoading) {
     return (
       <div className="min-h-screen w-full app-bg flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-[#0EA5FF]" />
+        <Loader2 className="w-8 h-8 animate-spin text-[var(--accent)]" />
       </div>
     );
   }
 
   if (!folder || words.length === 0) {
     return (
-      <div className="min-h-screen w-full app-bg text-white flex flex-col items-center justify-center">
-        <p className="text-[#A6B0BE] mb-4">No words in this folder</p>
+      <div className="min-h-screen w-full app-bg scholar-title flex flex-col items-center justify-center">
+        <p className="scholar-muted mb-4">No words in this folder</p>
         <Button
           onClick={() => setLocation(`/folder/${folderId}`)}
-          className="bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full"
+          className="bg-[var(--accent)] hover:bg-[var(--accent-strong)] scholar-title rounded-full"
         >
           Go Back
         </Button>
@@ -275,13 +275,13 @@ export default function Review() {
     return (
       <div className="flex items-center justify-center min-h-screen w-full px-6 app-bg">
         <div className="text-center">
-          <p className="text-white text-xl font-bold mb-4">Review completed</p>
-          <p className="text-[#A6B0BE] mb-8">Session finished. No progress was marked as learned.</p>
+          <p className="scholar-title text-xl font-bold mb-4">Review completed</p>
+          <p className="scholar-muted mb-8">Session finished. No progress was marked as learned.</p>
           <div className="flex items-center justify-center gap-3">
-            <Button onClick={restartSession} className="bg-[#10B981] hover:bg-[#0ea073] text-white rounded-full">
+            <Button onClick={restartSession} className="bg-[#10B981] hover:bg-[#0ea073] scholar-title rounded-full">
               Repeat Again
             </Button>
-            <Button onClick={() => setLocation(`/folder/${folderId}`)} className="bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full">
+            <Button onClick={() => setLocation(`/folder/${folderId}`)} className="bg-[var(--accent)] hover:bg-[var(--accent-strong)] scholar-title rounded-full">
               Back
             </Button>
           </div>
@@ -329,13 +329,13 @@ export default function Review() {
       </div>
 
       <div className="mx-auto w-full max-w-6xl px-4 pt-3 sm:px-6">
-        <div className="rounded-2xl border border-white/10 bg-[#111827]/82 px-4 py-3">
-          <div className="mb-2 flex items-center justify-between text-xs text-[#A6B0BE]">
+        <div className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-4 py-3">
+          <div className="mb-2 flex items-center justify-between text-xs scholar-muted">
             <span>Review progress</span>
             <span>{completedWords}/{sessionTotal}</span>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-[#15202B]">
-            <div className="h-full rounded-full bg-[#0EA5FF] transition-all" style={{ width: `${progressPercent}%` }} />
+          <div className="h-2 overflow-hidden rounded-full bg-[color-mix(in_srgb,_var(--text-primary)_12%,_transparent)]">
+            <div className="h-full rounded-full bg-[var(--accent)] transition-all" style={{ width: `${progressPercent}%` }} />
           </div>
         </div>
       </div>
@@ -348,23 +348,23 @@ export default function Review() {
               <div className="memorize-card memorize-preview-card pointer-events-none relative h-full min-h-[360px] w-full rounded-3xl p-4 sm:min-h-[460px] md:min-h-[560px] sm:p-8 flex flex-col justify-between select-none">
                 <div className="flex-1 flex items-center justify-center">
                   <div className="w-full text-center">
-                    <p className="mb-3 text-xs uppercase tracking-[0.3em] text-white/45">Word {Math.min(sessionTotal, completedWords + 2)} of {sessionTotal}</p>
-                    <p className="mb-2 text-sm text-white/45">Review</p>
-                    <h2 className="text-center text-[1.9rem] font-bold leading-tight text-white/72 sm:text-4xl">{previewPromptText}</h2>
+                    <p className="mb-3 text-xs uppercase tracking-[0.3em] scholar-muted">Word {Math.min(sessionTotal, completedWords + 2)} of {sessionTotal}</p>
+                    <p className="mb-2 text-sm scholar-muted">Review</p>
+                    <h2 className="text-center text-[1.9rem] font-bold leading-tight scholar-muted sm:text-4xl">{previewPromptText}</h2>
                   </div>
                 </div>
                 <div className="mb-4 sm:mb-8">
                   <div className="memorize-glass-panel flex w-full items-center justify-center gap-3 rounded-2xl py-5 opacity-80 sm:py-8">
-                    <Eye className="h-5 w-5 text-white/70" />
-                    <span className="text-white/70">Show translation</span>
+                    <Eye className="h-5 w-5 scholar-muted" />
+                    <span className="scholar-muted">Show translation</span>
                   </div>
                 </div>
                 <div className="flex gap-3 sm:gap-4">
-                  <div className="memorize-action-button flex h-14 flex-1 items-center justify-center rounded-full bg-[#0EA5FF] sm:h-16">
-                    <span className="text-sm sm:text-base text-white/85 font-semibold">Don't Know</span>
+                  <div className="memorize-action-button flex h-14 flex-1 items-center justify-center rounded-full bg-[var(--accent)] sm:h-16">
+                    <span className="text-sm sm:text-base scholar-title font-semibold">Don't Know</span>
                   </div>
                   <div className="memorize-action-button flex h-14 flex-1 items-center justify-center rounded-full bg-[#10B981] sm:h-16">
-                    <span className="text-sm sm:text-base text-white/85 font-semibold">I Know</span>
+                    <span className="text-sm sm:text-base scholar-title font-semibold">I Know</span>
                   </div>
                 </div>
               </div>
@@ -395,12 +395,12 @@ export default function Review() {
           >
             <div className="flex flex-1 items-center justify-center">
               <div className="w-full text-center">
-                <p className="mb-3 text-xs uppercase tracking-[0.3em] text-[#A6B0BE]">Word {completedWords + 1} of {sessionTotal}</p>
-                <p className="mb-2 text-sm text-[#A6B0BE]">Review</p>
+                <p className="mb-3 text-xs uppercase tracking-[0.3em] scholar-muted">Word {completedWords + 1} of {sessionTotal}</p>
+                <p className="mb-2 text-sm scholar-muted">Review</p>
                 <div className="flex items-center justify-center gap-2">
-                  <h2 className="text-center text-[1.9rem] font-bold leading-tight text-white sm:text-4xl">{promptText}</h2>
+                  <h2 className="text-center text-[1.9rem] font-bold leading-tight scholar-title sm:text-4xl">{promptText}</h2>
                   {promptSpeechText ? (
-                    <EnglishSpeakButton text={promptSpeechText} className="bg-white/10 text-white hover:bg-white/15" />
+                    <EnglishSpeakButton text={promptSpeechText} className="bg-white/10 scholar-title hover:bg-white/15" />
                   ) : null}
                 </div>
               </div>
@@ -412,29 +412,29 @@ export default function Review() {
                   onClick={() => setShowTranslation(true)}
                   className="memorize-glass-panel flex w-full items-center justify-center gap-3 rounded-2xl py-5 transition-colors hover:bg-white/10 sm:py-8"
                 >
-                  <Eye className="h-5 w-5 text-white" />
-                  <span className="text-white">Show translation</span>
+                  <Eye className="h-5 w-5 scholar-title" />
+                  <span className="scholar-title">Show translation</span>
                 </button>
               ) : (
                 <div className="memorize-glass-panel w-full rounded-2xl px-4 py-5 text-center sm:px-6 sm:py-8">
                   <div className="mb-2 flex items-center justify-center gap-2">
-                    <p className="text-lg font-semibold text-white">{answerText}</p>
+                    <p className="text-lg font-semibold scholar-title">{answerText}</p>
                     {answerSpeechText ? (
-                      <EnglishSpeakButton text={answerSpeechText} className="bg-white/10 text-white hover:bg-white/15" />
+                      <EnglishSpeakButton text={answerSpeechText} className="bg-white/10 scholar-title hover:bg-white/15" />
                     ) : null}
                   </div>
-                  {currentWord.description ? <p className="mb-2 text-sm text-white/90">{currentWord.description}</p> : null}
-                  {currentWord.example ? <p className="text-sm text-[#A6B0BE]">"{currentWord.example}"</p> : null}
+                  {currentWord.description ? <p className="mb-2 text-sm scholar-title">{currentWord.description}</p> : null}
+                  {currentWord.example ? <p className="text-sm scholar-muted">"{currentWord.example}"</p> : null}
                 </div>
               )}
             </div>
 
             <div className="flex gap-3 sm:gap-4">
-              <button onClick={() => handleAnswer(false)} className="memorize-action-button flex h-14 flex-1 items-center justify-center rounded-full bg-[#0EA5FF] hover:bg-[#0c8fd9] sm:h-16">
-                <span className="text-sm sm:text-base text-white font-semibold">Don't Know</span>
+              <button onClick={() => handleAnswer(false)} className="memorize-action-button flex h-14 flex-1 items-center justify-center rounded-full bg-[var(--accent)] hover:bg-[var(--accent-strong)] sm:h-16">
+                <span className="text-sm sm:text-base scholar-title font-semibold">Don't Know</span>
               </button>
               <button onClick={() => handleAnswer(true)} className="memorize-action-button flex h-14 flex-1 items-center justify-center rounded-full bg-[#10B981] hover:bg-[#0ea073] sm:h-16">
-                <span className="text-sm sm:text-base text-white font-semibold">I Know</span>
+                <span className="text-sm sm:text-base scholar-title font-semibold">I Know</span>
               </button>
             </div>
           </div>
