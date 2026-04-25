@@ -6,8 +6,8 @@ Get started with the Vocabulary Learning Website in 5 minutes!
 
 ### 1. Sign Up
 - Open the application
-- Click "Sign In with Manus"
-- Create your account or sign in with existing credentials
+- Click "Sign Up" to create a new account
+- Or click "Sign In" if you already have credentials
 
 ### 2. Create Your First Folder
 - Click the "New Folder" button

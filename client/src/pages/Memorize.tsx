@@ -1,8 +1,15 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { EnglishSpeakButton } from "@/components/EnglishSpeakButton";
 import { Button } from "@/components/ui/button";
-import { Loader2, ChevronLeft, Eye } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ChevronLeft, Loader2, RotateCcw } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "wouter";
 
 type Word = {
@@ -17,28 +24,15 @@ type Word = {
   updatedAt: Date;
 };
 
-type StudyMode = "classic" | "test" | "type" | "true-false";
-type StudyDirection = "en-uz" | "uz-en";
+type StudyMode = "test" | "type";
+type StudyDirection = "en-uz" | "uz-en" | "mixed";
 type ModeStats = Record<StudyMode, { attempted: number; correct: number }>;
 
-type TrueFalsePrompt = {
-  candidate: string;
-  isCorrect: boolean;
-};
+const TYPE_MODE_TIME_LIMIT_SECONDS = 9;
 
-const EDGE_GESTURE_GUARD_PX = 24;
-const SWIPE_THRESHOLD_PX = 80;
-const MODE_LABELS: Record<StudyMode, string> = {
-  classic: "Classic",
-  test: "Test",
-  type: "Type",
-  "true-false": "T/F",
-};
 const INITIAL_MODE_STATS: ModeStats = {
-  classic: { attempted: 0, correct: 0 },
   test: { attempted: 0, correct: 0 },
   type: { attempted: 0, correct: 0 },
-  "true-false": { attempted: 0, correct: 0 },
 };
 
 function shuffleArray<T>(items: T[]): T[] {
@@ -55,19 +49,25 @@ function normalizeAnswer(value: string) {
 }
 
 function parseModeFromUrl(): StudyMode {
-  if (typeof window === "undefined") return "classic";
+  if (typeof window === "undefined") return "test";
   const mode = new URLSearchParams(window.location.search).get("mode");
-  if (mode === "classic" || mode === "test" || mode === "type" || mode === "true-false") {
-    return mode;
-  }
-  return "classic";
+  return mode === "type" ? "type" : "test";
+}
+
+function getDefaultDirectionForMode(mode: StudyMode): StudyDirection {
+  return mode === "test" ? "en-uz" : "uz-en";
 }
 
 function parseDirectionFromUrl(): StudyDirection {
   if (typeof window === "undefined") return "en-uz";
   const dir = new URLSearchParams(window.location.search).get("dir");
-  if (dir === "en-uz" || dir === "uz-en") return dir;
+  if (dir === "en-uz" || dir === "uz-en" || dir === "mixed") return dir;
   return "en-uz";
+}
+
+function resolveDirection(direction: StudyDirection, seed: number): Exclude<StudyDirection, "mixed"> {
+  if (direction !== "mixed") return direction;
+  return seed % 2 === 0 ? "en-uz" : "uz-en";
 }
 
 export default function Memorize() {
@@ -77,38 +77,38 @@ export default function Memorize() {
   const folderId = parseInt(params.id || "0");
 
   const [mode, setMode] = useState<StudyMode>(parseModeFromUrl);
-  const [direction, setDirection] = useState<StudyDirection>(parseDirectionFromUrl);
-  const [isStarted, setIsStarted] = useState(false);
-  const [showSettings, setShowSettings] = useState(true);
-  const [showTranslation, setShowTranslation] = useState(false);
+  const [direction, setDirection] = useState<StudyDirection>(() => {
+    const initialMode = parseModeFromUrl();
+    const parsedDirection = parseDirectionFromUrl();
+    if (typeof window === "undefined") return getDefaultDirectionForMode(initialMode);
+    const hasDir = new URLSearchParams(window.location.search).has("dir");
+    return hasDir ? parsedDirection : getDefaultDirectionForMode(initialMode);
+  });
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [typedAnswer, setTypedAnswer] = useState("");
   const [typedResult, setTypedResult] = useState<"correct" | "wrong" | null>(null);
-  const [trueFalseChoice, setTrueFalseChoice] = useState<boolean | null>(null);
-  const [trueFalsePrompt, setTrueFalsePrompt] = useState<TrueFalsePrompt | null>(null);
-  const [swipeDirection, setSwipeDirection] = useState<"left" | "right" | null>(null);
-  const [dragOffset, setDragOffset] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isCardReady, setIsCardReady] = useState(false);
-  const cardRef = useRef<HTMLDivElement>(null);
-  const typeInputRef = useRef<HTMLInputElement>(null);
-  const startX = useRef(0);
-  const startY = useRef(0);
-  const edgeGestureBlocked = useRef(false);
-
-  const [wordQueue, setWordQueue] = useState<Word[]>([]);
-  const [queueIndex, setQueueIndex] = useState(0);
-  const [sessionTotal, setSessionTotal] = useState(0);
   const [pendingWrongMode, setPendingWrongMode] = useState<StudyMode | null>(null);
+  const [wordQueue, setWordQueue] = useState<Word[]>([]);
+  const [sessionTotal, setSessionTotal] = useState(0);
   const [showStats, setShowStats] = useState(false);
   const [modeStats, setModeStats] = useState<ModeStats>(INITIAL_MODE_STATS);
+  const [isCardReady, setIsCardReady] = useState(false);
+  const [typeTimeLeft, setTypeTimeLeft] = useState(TYPE_MODE_TIME_LIMIT_SECONDS);
+
+  const typeInputRef = useRef<HTMLInputElement>(null);
+  const typedAnswerRef = useRef("");
   const wrongContinueTimerRef = useRef<number | null>(null);
+  const typeTimerRef = useRef<number | null>(null);
+  const typeTimerIntervalRef = useRef<number | null>(null);
 
   const { data: words = [], isLoading: wordsLoading } = trpc.vocabulary.getWords.useQuery(
     { folderId },
     { enabled: isAuthenticated && folderId > 0 }
   );
-
+  const { data: folder, isLoading: folderLoading } = trpc.vocabulary.getFolderById.useQuery(
+    { folderId },
+    { enabled: isAuthenticated && folderId > 0 }
+  );
   const updateProgressMutation = trpc.vocabulary.updateProgress.useMutation();
 
   useEffect(() => {
@@ -122,12 +122,14 @@ export default function Memorize() {
   }, [mode, direction]);
 
   useEffect(() => {
+    typedAnswerRef.current = typedAnswer;
+  }, [typedAnswer]);
+
+  useEffect(() => {
     if (words.length > 0) {
-      setWordQueue(shuffleArray(words));
-      setQueueIndex(0);
-      setSessionTotal(words.length);
-      setIsStarted(false);
-      setShowSettings(true);
+      const shuffled = shuffleArray(words);
+      setWordQueue(shuffled);
+      setSessionTotal(shuffled.length);
     }
   }, [words]);
 
@@ -136,207 +138,153 @@ export default function Memorize() {
       if (wrongContinueTimerRef.current !== null) {
         window.clearTimeout(wrongContinueTimerRef.current);
       }
+      if (typeTimerRef.current !== null) {
+        window.clearTimeout(typeTimerRef.current);
+      }
+      if (typeTimerIntervalRef.current !== null) {
+        window.clearInterval(typeTimerIntervalRef.current);
+      }
     };
   }, []);
 
-  const currentWord = wordQueue[queueIndex];
-  const remainingWords = wordQueue.length - queueIndex;
-  const completedWords = Math.max(0, sessionTotal - remainingWords);
+  const currentWord = wordQueue[0];
+  const completedWords = Math.max(0, sessionTotal - wordQueue.length);
   const progressPercent =
     sessionTotal > 0 ? Math.min(100, (completedWords / sessionTotal) * 100) : 0;
+
+  const currentDirection = currentWord
+    ? resolveDirection(direction, currentWord.id + completedWords)
+    : "en-uz";
+  const promptText =
+    currentWord
+      ? currentDirection === "en-uz"
+        ? currentWord.english
+        : currentWord.uzbek
+      : "";
+  const answerText =
+    currentWord
+      ? currentDirection === "en-uz"
+        ? currentWord.uzbek
+        : currentWord.english
+      : "";
+  const promptSpeechText = currentDirection === "en-uz" ? promptText : null;
+  const answerSpeechText = currentDirection === "uz-en" ? answerText : null;
+  const optionsContainEnglish = currentDirection === "uz-en";
+
+  const testOptions = useMemo(() => {
+    if (!currentWord || mode !== "test") return [];
+    const correct = answerText;
+    const pool = words.map(word => {
+      const resolved = resolveDirection(direction, word.id + completedWords);
+      return resolved === "en-uz" ? word.uzbek : word.english;
+    });
+    const uniqueDistractors = Array.from(new Set(pool.filter(value => value !== correct)));
+    return shuffleArray(Array.from(new Set([correct, ...shuffleArray(uniqueDistractors).slice(0, 3)])));
+  }, [answerText, completedWords, currentWord, direction, mode, words]);
+
+  useEffect(() => {
+    if (!currentWord) return;
+    setSelectedOption(null);
+    setTypedAnswer("");
+    setTypedResult(null);
+    setPendingWrongMode(null);
+    setIsCardReady(false);
+    const rafId = requestAnimationFrame(() => setIsCardReady(true));
+    return () => cancelAnimationFrame(rafId);
+  }, [currentWord?.id, mode]);
+
+  useEffect(() => {
+    if (mode !== "type" || !currentWord || pendingWrongMode || typedResult !== null) return;
+    const timer = window.setTimeout(() => typeInputRef.current?.focus(), 80);
+    return () => window.clearTimeout(timer);
+  }, [currentWord?.id, mode, pendingWrongMode, typedResult]);
+
+  useEffect(() => {
+    if (typeTimerRef.current !== null) {
+      window.clearTimeout(typeTimerRef.current);
+      typeTimerRef.current = null;
+    }
+    if (typeTimerIntervalRef.current !== null) {
+      window.clearInterval(typeTimerIntervalRef.current);
+      typeTimerIntervalRef.current = null;
+    }
+
+    if (mode !== "type" || !currentWord || pendingWrongMode || typedResult !== null) {
+      setTypeTimeLeft(TYPE_MODE_TIME_LIMIT_SECONDS);
+      return;
+    }
+
+    const startedAt = Date.now();
+    setTypeTimeLeft(TYPE_MODE_TIME_LIMIT_SECONDS);
+
+    typeTimerIntervalRef.current = window.setInterval(() => {
+      const elapsedMs = Date.now() - startedAt;
+      const remaining = Math.max(
+        0,
+        Math.ceil((TYPE_MODE_TIME_LIMIT_SECONDS * 1000 - elapsedMs) / 1000)
+      );
+      setTypeTimeLeft(remaining);
+    }, 200);
+
+    typeTimerRef.current = window.setTimeout(() => {
+      setTypeTimeLeft(0);
+      submitTypedAnswer(typedAnswerRef.current);
+    }, TYPE_MODE_TIME_LIMIT_SECONDS * 1000);
+
+    return () => {
+      if (typeTimerRef.current !== null) {
+        window.clearTimeout(typeTimerRef.current);
+        typeTimerRef.current = null;
+      }
+      if (typeTimerIntervalRef.current !== null) {
+        window.clearInterval(typeTimerIntervalRef.current);
+        typeTimerIntervalRef.current = null;
+      }
+    };
+  }, [currentWord?.id, mode, pendingWrongMode, typedResult]);
+
   const currentModeStats = modeStats[mode];
   const currentModeAccuracy =
     currentModeStats.attempted > 0
       ? Math.round((currentModeStats.correct / currentModeStats.attempted) * 100)
       : 0;
 
-  const promptText =
-    direction === "en-uz" ? currentWord?.english ?? "" : currentWord?.uzbek ?? "";
-  const answerText =
-    direction === "en-uz" ? currentWord?.uzbek ?? "" : currentWord?.english ?? "";
-
-  const testOptions = useMemo(() => {
-    if (!currentWord || mode !== "test") return [];
-
-    const correct = direction === "en-uz" ? currentWord.uzbek : currentWord.english;
-    const pool = words.map(word => (direction === "en-uz" ? word.uzbek : word.english));
-    const uniqueDistractors = Array.from(new Set(pool.filter(value => value !== correct)));
-    const options = [correct, ...shuffleArray(uniqueDistractors).slice(0, 3)];
-
-    return shuffleArray(Array.from(new Set(options)));
-  }, [currentWord, direction, mode, words]);
-
-  useEffect(() => {
-    if (!currentWord) return;
-    setIsCardReady(false);
-    const rafId = requestAnimationFrame(() => {
-      setIsCardReady(true);
-    });
-    return () => cancelAnimationFrame(rafId);
-  }, [currentWord?.id]);
-
-  useEffect(() => {
-    if (!currentWord || mode !== "true-false") {
-      setTrueFalsePrompt(null);
-      return;
-    }
-
-    const correct = direction === "en-uz" ? currentWord.uzbek : currentWord.english;
-    const pool = words
-      .map(word => (direction === "en-uz" ? word.uzbek : word.english))
-      .filter(value => value !== correct);
-
-    if (pool.length === 0) {
-      setTrueFalsePrompt({ candidate: correct, isCorrect: true });
-      return;
-    }
-
-    const showCorrect = (currentWord.id + completedWords) % 2 === 0;
-    if (showCorrect) {
-      setTrueFalsePrompt({ candidate: correct, isCorrect: true });
-      return;
-    }
-
-    const candidate = pool[(currentWord.id + completedWords) % pool.length];
-    setTrueFalsePrompt({ candidate, isCorrect: false });
-  }, [currentWord, direction, mode, words, completedWords]);
-
-  useEffect(() => {
-    if (
-      !isStarted ||
-      mode !== "type" ||
-      pendingWrongMode ||
-      typedResult !== null ||
-      !currentWord
-    ) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      typeInputRef.current?.focus();
-    }, 80);
-
-    return () => window.clearTimeout(timer);
-  }, [isStarted, mode, pendingWrongMode, typedResult, currentWord?.id]);
-
-  if (wordsLoading) {
-    return (
-      <div className="min-h-screen w-full app-bg flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-[#0EA5FF]" />
-      </div>
-    );
-  }
-
-  if (words.length === 0) {
-    return (
-      <div className="min-h-screen w-full app-bg text-white flex flex-col items-center justify-center">
-        <p className="text-[#A6B0BE] mb-4">No words in this folder</p>
-        <Button
-          onClick={() => setLocation("/")}
-          className="bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full"
-        >
-          Go Back
-        </Button>
-      </div>
-    );
-  }
-
-  if (!currentWord) {
-    return (
-      <div className="flex items-center justify-center min-h-screen w-full px-6 app-bg">
-        <div className="text-center">
-          <p className="text-white text-xl font-bold mb-4">All words learned!</p>
-          <p className="text-[#A6B0BE] mb-8">Great job! You've completed this session.</p>
-          <Button
-            onClick={() => setLocation("/")}
-            className="px-6 py-3 bg-[#0EA5FF] hover:bg-[#0c8fd9] rounded-full text-white"
-          >
-            Go Back
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  const resetCardState = () => {
-    setShowTranslation(false);
+  const restartSession = () => {
+    const shuffled = shuffleArray(words);
+    setWordQueue(shuffled);
+    setSessionTotal(shuffled.length);
     setSelectedOption(null);
     setTypedAnswer("");
     setTypedResult(null);
-    setTrueFalseChoice(null);
-    setTrueFalsePrompt(null);
-  };
-
-  const clearWrongContinueTimer = () => {
+    setPendingWrongMode(null);
+    setTypeTimeLeft(TYPE_MODE_TIME_LIMIT_SECONDS);
     if (wrongContinueTimerRef.current !== null) {
       window.clearTimeout(wrongContinueTimerRef.current);
       wrongContinueTimerRef.current = null;
     }
   };
 
-  const selectMode = (nextMode: StudyMode) => {
+  const handleModeChange = (nextMode: StudyMode) => {
     setMode(nextMode);
-    setShowTranslation(false);
-    setSelectedOption(null);
-    setTypedAnswer("");
-    setTypedResult(null);
-    setTrueFalseChoice(null);
-  };
-
-  const selectDirection = (nextDirection: StudyDirection) => {
-    setDirection(nextDirection);
-    setShowTranslation(false);
-    setSelectedOption(null);
-    setTypedAnswer("");
-    setTypedResult(null);
-    setTrueFalseChoice(null);
-  };
-
-  const startMemorize = () => {
-    setWordQueue(shuffleArray(words));
-    setQueueIndex(0);
-    setSessionTotal(words.length);
-    setIsStarted(true);
-    setShowSettings(false);
-    setPendingWrongMode(null);
-    clearWrongContinueTimer();
-    resetCardState();
+    setDirection(getDefaultDirectionForMode(nextMode));
   };
 
   const finalizeAnswer = (known: boolean, answeredMode: StudyMode) => {
+    if (!currentWord) return;
     updateProgressMutation.mutate({ wordId: currentWord.id, known });
-
-    setSwipeDirection(known ? "right" : "left");
-
-    setTimeout(() => {
-      if (!known) {
-        const newQueue = [...wordQueue];
-        const currentWordCopy = { ...currentWord };
-        newQueue.splice(queueIndex, 1);
-        newQueue.push(currentWordCopy);
-        setWordQueue(newQueue);
-      } else {
-        const newQueue = wordQueue.filter((_, idx) => idx !== queueIndex);
-        setWordQueue(newQueue);
-      }
-
-      resetCardState();
-      setPendingWrongMode(null);
-      setSwipeDirection(null);
-      setDragOffset(0);
-      setIsDragging(false);
-    }, 300);
-  };
-
-  const continueAfterWrong = () => {
-    if (!pendingWrongMode) return;
-    clearWrongContinueTimer();
-    finalizeAnswer(false, pendingWrongMode);
+    setWordQueue(prev => {
+      if (prev.length === 0) return prev;
+      const [first, ...rest] = prev;
+      return known ? rest : [...rest, first];
+    });
+    setPendingWrongMode(null);
+    setSelectedOption(null);
+    setTypedAnswer("");
+    setTypedResult(null);
   };
 
   const handleAnswer = (known: boolean, answeredMode: StudyMode = mode) => {
-    if (!isStarted || pendingWrongMode) return;
-
+    if (!currentWord || pendingWrongMode) return;
     setModeStats(prev => {
       const current = prev[answeredMode];
       return {
@@ -350,7 +298,9 @@ export default function Memorize() {
 
     if (!known) {
       setPendingWrongMode(answeredMode);
-      clearWrongContinueTimer();
+      if (wrongContinueTimerRef.current !== null) {
+        window.clearTimeout(wrongContinueTimerRef.current);
+      }
       wrongContinueTimerRef.current = window.setTimeout(() => {
         finalizeAnswer(false, answeredMode);
       }, 5000);
@@ -360,526 +310,242 @@ export default function Memorize() {
     finalizeAnswer(true, answeredMode);
   };
 
-  const handleOptionSelect = (option: string) => {
-    if (!isStarted || pendingWrongMode || selectedOption) return;
-    const known = option === answerText;
-    const answeredMode = mode;
-    setSelectedOption(option);
-    setTimeout(() => {
-      handleAnswer(known, answeredMode);
-    }, 320);
-  };
+  const submitTypedAnswer = (value: string) => {
+    if (pendingWrongMode || typedResult !== null) return;
 
-  const handleTypedSubmit = () => {
-    if (!isStarted || pendingWrongMode || typedResult) return;
-    const known = normalizeAnswer(typedAnswer) === normalizeAnswer(answerText);
-    const answeredMode = mode;
+    const known = normalizeAnswer(value) === normalizeAnswer(answerText);
     setTypedResult(known ? "correct" : "wrong");
-    setTimeout(() => {
-      handleAnswer(known, answeredMode);
-    }, 350);
+    window.setTimeout(() => handleAnswer(known, "type"), 220);
   };
 
-  const handleTrueFalseSubmit = (choice: boolean) => {
-    if (!isStarted || pendingWrongMode || !trueFalsePrompt || trueFalseChoice !== null) return;
-    setTrueFalseChoice(choice);
-    const known = choice === trueFalsePrompt.isCorrect;
-    const answeredMode = mode;
-    setTimeout(() => {
-      handleAnswer(known, answeredMode);
-    }, 350);
+  const continueAfterWrong = () => {
+    if (!pendingWrongMode) return;
+    if (wrongContinueTimerRef.current !== null) {
+      window.clearTimeout(wrongContinueTimerRef.current);
+      wrongContinueTimerRef.current = null;
+    }
+    finalizeAnswer(false, pendingWrongMode);
   };
 
-  const handleStart = (clientX: number, clientY: number) => {
-    if (!isStarted || pendingWrongMode || mode !== "classic") return;
+  if (folderLoading || wordsLoading) {
+    return (
+      <div className="min-h-screen w-full app-bg flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-[#0EA5FF]" />
+      </div>
+    );
+  }
 
-    const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
-    const nearScreenEdge =
-      clientX <= EDGE_GESTURE_GUARD_PX || clientX >= viewportWidth - EDGE_GESTURE_GUARD_PX;
+  if (!folder || words.length === 0) {
+    return (
+      <div className="min-h-screen w-full app-bg text-white flex flex-col items-center justify-center">
+        <p className="text-[#A6B0BE] mb-4">No words in this folder</p>
+        <Button onClick={() => setLocation(`/folder/${folderId}`)} className="bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full">
+          Go Back
+        </Button>
+      </div>
+    );
+  }
 
-    edgeGestureBlocked.current = nearScreenEdge;
-    if (nearScreenEdge) {
-      setIsDragging(false);
-      setDragOffset(0);
-      return;
-    }
-
-    startX.current = clientX;
-    startY.current = clientY;
-    setIsDragging(true);
-  };
-
-  const handleMove = (clientX: number, clientY: number) => {
-    if (!isStarted || pendingWrongMode || mode !== "classic") return false;
-    if (!isDragging || edgeGestureBlocked.current) return false;
-
-    const offsetX = clientX - startX.current;
-    const offsetY = clientY - startY.current;
-    const horizontalIntent = Math.abs(offsetX) > Math.abs(offsetY);
-
-    if (!horizontalIntent) {
-      setDragOffset(0);
-      return false;
-    }
-
-    setDragOffset(offsetX);
-    return true;
-  };
-
-  const handleEnd = () => {
-    if (!isStarted || pendingWrongMode || mode !== "classic") {
-      setDragOffset(0);
-      setIsDragging(false);
-      edgeGestureBlocked.current = false;
-      return;
-    }
-
-    if (!isDragging) {
-      edgeGestureBlocked.current = false;
-      return;
-    }
-
-    setIsDragging(false);
-    edgeGestureBlocked.current = false;
-
-    if (Math.abs(dragOffset) > SWIPE_THRESHOLD_PX) {
-      if (dragOffset > 0) {
-        handleAnswer(true);
-      } else {
-        handleAnswer(false);
-      }
-    }
-
-    setDragOffset(0);
-  };
-
-  const getCardTransform = () => {
-    if (swipeDirection === "right") return "translateX(400px) rotate(20deg)";
-    if (swipeDirection === "left") return "translateX(-400px) rotate(-20deg)";
-    if (isDragging && mode === "classic") {
-      const rotation = dragOffset / 20;
-      return `translateX(${dragOffset}px) rotate(${rotation}deg)`;
-    }
-    return "translateX(0) rotate(0)";
-  };
-
-  const getCardOpacity = () => {
-    if (swipeDirection) return 0;
-    if (isDragging && mode === "classic") {
-      return Math.max(0.5, 1 - Math.abs(dragOffset) / 400);
-    }
-    return 1;
-  };
+  if (!currentWord) {
+    return (
+      <div className="flex items-center justify-center min-h-screen w-full px-6 app-bg">
+        <div className="text-center">
+          <p className="text-white text-xl font-bold mb-4">Memorize completed</p>
+          <p className="text-[#A6B0BE] mb-8">Great job. Your correct answers were saved as learned.</p>
+          <div className="flex items-center justify-center gap-3">
+            <Button onClick={restartSession} className="bg-[#10B981] hover:bg-[#0ea073] text-white rounded-full">
+              Start Again
+            </Button>
+            <Button onClick={() => setLocation(`/folder/${folderId}`)} className="bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full">
+              Back
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="memorize-page flex flex-col min-h-screen w-full app-bg text-white">
-      <div className="border-b border-white/10 bg-[#0B0E14]/70 backdrop-blur sticky top-0 z-40">
-        <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
-          <div className="flex items-center justify-between py-4">
-            <button
-              onClick={() => setLocation("/")}
-              className="p-2 -ml-2 hover:bg-white/5 rounded-lg transition-colors"
-            >
-              <ChevronLeft className="w-6 h-6 text-white" />
+    <div className="memorize-page flex flex-col min-h-screen w-full app-bg text-foreground">
+      <div className="page-navbar sticky top-0 z-40">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <button onClick={() => setLocation(`/folder/${folderId}`)} className="glass-icon-button" type="button" aria-label="Back">
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <div className="min-w-0 flex-1 text-center">
+            <h1 className="truncate font-display text-base text-strong">{folder.name}</h1>
+            <p className="text-[11px] text-dim">Memorize</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" className="page-navbar-pill rounded-full px-3 py-1.5 text-xs">
+                  {mode === "test" ? "Test" : "Type"}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="glass-dropdown min-w-36 rounded-2xl p-1.5">
+                <DropdownMenuItem onClick={() => handleModeChange("test")} className="glass-dropdown-item">Test</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleModeChange("type")} className="glass-dropdown-item">Type</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" className="page-navbar-pill rounded-full px-3 py-1.5 text-xs">
+                  {direction === "en-uz" ? "ENG" : direction === "uz-en" ? "UZB" : "Mix"}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="glass-dropdown min-w-36 rounded-2xl p-1.5">
+                <DropdownMenuItem onClick={() => setDirection("en-uz")} className="glass-dropdown-item">ENG {"->"} UZB</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setDirection("uz-en")} className="glass-dropdown-item">UZB {"->"} ENG</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setDirection("mixed")} className="glass-dropdown-item">Mixed</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <button onClick={restartSession} className="glass-icon-button" type="button" aria-label="Restart">
+              <RotateCcw className="h-4 w-4" />
             </button>
-            <h1 className="font-display text-[#0EA5FF]">Memorize</h1>
-            {isStarted ? (
-              <button
-                type="button"
-                onClick={() => setShowSettings(prev => !prev)}
-                className="rounded-lg px-2 py-1 text-xs text-[#A6B0BE] hover:text-white hover:bg-white/5 transition"
-              >
-                {showSettings ? "Hide" : "Settings"}
-              </button>
-            ) : (
-              <div className="w-6" />
-            )}
           </div>
         </div>
       </div>
 
-      {!isStarted || showSettings ? (
-      <div className="mx-auto w-full max-w-6xl px-4 pt-3 sm:px-6 sm:pt-5">
-        <div className="rounded-2xl border border-white/10 bg-[#111827]/85 px-3 py-3 sm:px-4">
-          <div className="flex items-center justify-between text-xs sm:text-sm text-[#A6B0BE] mb-2">
-            <span>Session progress</span>
-            <span>
-              {completedWords}/{sessionTotal}
-            </span>
-          </div>
-          <div className="h-2 bg-[#15202B] rounded-full overflow-hidden">
-            <div
-              className="bg-[#0EA5FF] h-full rounded-full transition-all"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={() => setShowStats(prev => !prev)}
-              className="text-[11px] sm:text-xs text-[#A6B0BE] hover:text-white transition"
-            >
+      <div className="mx-auto w-full max-w-6xl px-4 pt-3 sm:px-6">
+        <div className="rounded-2xl border border-white/10 bg-[#111827]/82 px-4 py-3">
+          <div className="mb-2 flex items-center justify-between gap-3 text-xs text-[#A6B0BE]">
+            <span>{completedWords}/{sessionTotal}</span>
+            <button type="button" onClick={() => setShowStats(prev => !prev)} className="transition hover:text-white">
               {showStats ? "Hide stats" : "Show stats"}
             </button>
-            <span className="text-[11px] sm:text-xs text-white">
-              {MODE_LABELS[mode]} {currentModeAccuracy}%
-            </span>
+            <span>{mode === "test" ? "Test" : "Type"} {currentModeAccuracy}%</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-[#15202B]">
+            <div className="h-full rounded-full bg-[#0EA5FF] transition-all" style={{ width: `${progressPercent}%` }} />
           </div>
           {showStats ? (
-            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] sm:text-xs text-[#A6B0BE]">
-              <span className="text-white">
-                {MODE_LABELS[mode]} {currentModeAccuracy}% ({currentModeStats.correct}/
-                {currentModeStats.attempted})
-              </span>
-              {(Object.keys(MODE_LABELS) as StudyMode[])
-                .filter(modeKey => modeKey !== mode)
-                .map((modeKey) => {
-                  const stat = modeStats[modeKey];
-                  const accuracy =
-                    stat.attempted > 0 ? Math.round((stat.correct / stat.attempted) * 100) : 0;
-                  return (
-                    <span key={modeKey} className="rounded-md bg-white/5 px-1.5 py-0.5">
-                      {MODE_LABELS[modeKey]} {accuracy}%
-                    </span>
-                  );
-                })}
+            <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-[#A6B0BE]">
+              <span className="text-white">Test {modeStats.test.correct}/{modeStats.test.attempted}</span>
+              <span className="text-white">Type {modeStats.type.correct}/{modeStats.type.attempted}</span>
             </div>
-          ) : null}
-
-          <div className="mt-2.5 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => selectMode("classic")}
-              className={`rounded-lg px-2.5 py-1.5 text-xs sm:text-sm transition border ${
-                mode === "classic"
-                  ? "bg-[#0EA5FF] text-white border-[#0EA5FF]"
-                  : "bg-[#0B1220] text-[#A6B0BE] border-white/10"
-              }`}
-            >
-              Classic
-            </button>
-            <button
-              type="button"
-              onClick={() => selectMode("test")}
-              className={`rounded-lg px-2.5 py-1.5 text-xs sm:text-sm transition border ${
-                mode === "test"
-                  ? "bg-[#0EA5FF] text-white border-[#0EA5FF]"
-                  : "bg-[#0B1220] text-[#A6B0BE] border-white/10"
-              }`}
-            >
-              Test
-            </button>
-            <button
-              type="button"
-              onClick={() => selectMode("type")}
-              className={`rounded-lg px-2.5 py-1.5 text-xs sm:text-sm transition border ${
-                mode === "type"
-                  ? "bg-[#0EA5FF] text-white border-[#0EA5FF]"
-                  : "bg-[#0B1220] text-[#A6B0BE] border-white/10"
-              }`}
-            >
-              Type
-            </button>
-            <button
-              type="button"
-              onClick={() => selectMode("true-false")}
-              className={`rounded-lg px-2.5 py-1.5 text-xs sm:text-sm transition border ${
-                mode === "true-false"
-                  ? "bg-[#0EA5FF] text-white border-[#0EA5FF]"
-                  : "bg-[#0B1220] text-[#A6B0BE] border-white/10"
-              }`}
-            >
-              True / False
-            </button>
-          </div>
-
-          <div className="mt-2 flex bg-[#0B1220] rounded-xl p-1 border border-white/10">
-            <button
-              type="button"
-              onClick={() => selectDirection("en-uz")}
-              className={`flex-1 rounded-lg px-2.5 py-1.5 text-xs sm:text-sm transition ${
-                direction === "en-uz" ? "bg-[#10B981] text-white" : "text-[#A6B0BE]"
-              }`}
-            >
-              ENG → UZB
-            </button>
-            <button
-              type="button"
-              onClick={() => selectDirection("uz-en")}
-              className={`flex-1 rounded-lg px-2.5 py-1.5 text-xs sm:text-sm transition ${
-                direction === "uz-en" ? "bg-[#10B981] text-white" : "text-[#A6B0BE]"
-              }`}
-            >
-              UZB → ENG
-            </button>
-          </div>
-          {!isStarted ? (
-            <Button
-              onClick={startMemorize}
-              className="mt-3 w-full bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-xl py-2.5"
-            >
-              Start Memorize
-            </Button>
           ) : null}
         </div>
       </div>
-      ) : null}
 
-      {isStarted ? (
-      <div className="flex-1 flex items-center justify-center px-4 py-3 sm:px-6 sm:py-10">
-        <div className="relative w-full max-w-3xl">
-          <div className="absolute inset-0 bg-[#1a2732] rounded-3xl transform translate-y-2 scale-95 opacity-50" />
-          <div className="absolute inset-0 bg-[#15202B] rounded-3xl transform translate-y-1 scale-[0.97] opacity-75" />
-
-          <div
-            ref={cardRef}
-            onMouseDown={(e) => handleStart(e.clientX, e.clientY)}
-            onMouseMove={(e) => handleMove(e.clientX, e.clientY)}
-            onMouseUp={handleEnd}
-            onMouseLeave={handleEnd}
-            onTouchStart={(e) => handleStart(e.touches[0].clientX, e.touches[0].clientY)}
-            onTouchMove={(e) => {
-              const isHorizontal = handleMove(e.touches[0].clientX, e.touches[0].clientY);
-              if (isHorizontal) {
-                e.preventDefault();
-              }
-            }}
-            onTouchEnd={handleEnd}
-            onTouchCancel={handleEnd}
-            onClick={() => {
-              if (pendingWrongMode) {
-                continueAfterWrong();
-              }
-            }}
-            className={`swipe-card relative bg-[#15202B] rounded-3xl p-4 sm:p-8 min-h-[360px] sm:min-h-[460px] md:min-h-[560px] flex flex-col justify-between select-none ${
-              mode === "classic"
-                ? "cursor-grab active:cursor-grabbing"
-                : "cursor-default"
-            }`}
-            style={{
-              transform: getCardTransform(),
-              opacity: isCardReady ? getCardOpacity() : 0,
-              transition: isDragging ? "none" : "transform 0.3s ease, opacity 0.3s ease",
-              willChange: "transform, opacity",
-            }}
-          >
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center w-full">
-                <p className="text-xs uppercase tracking-[0.3em] text-[#A6B0BE] mb-3">
-                  Word {completedWords + 1} of {sessionTotal}
+      <div className="flex flex-1 items-center justify-center px-4 py-3 sm:px-6 sm:py-10">
+        <div
+          onClick={() => {
+            if (pendingWrongMode) continueAfterWrong();
+          }}
+          className="memorize-card relative flex w-full max-w-3xl min-h-[360px] flex-col justify-between rounded-3xl p-4 sm:min-h-[460px] md:min-h-[560px] sm:p-8"
+          style={{
+            transform: isCardReady ? "translateY(0) scale(1)" : "translateY(4px) scale(0.996)",
+            opacity: isCardReady ? 1 : 0.985,
+            transition: "transform 0.18s ease-out, opacity 0.16s ease-out",
+          }}
+        >
+          <div className="flex flex-1 items-center justify-center">
+            <div className="w-full text-center">
+              <p className="mb-3 text-xs uppercase tracking-[0.3em] text-[#A6B0BE]">Word {completedWords + 1} of {sessionTotal}</p>
+              <p className="mb-2 text-sm text-[#A6B0BE]">
+                {mode === "test"
+                  ? "Choose the correct answer"
+                  : "Type the translation"}
+              </p>
+              {mode === "type" ? (
+                <p className="mb-3 text-xs uppercase tracking-[0.24em] text-[#FBBF24]">
+                  {typeTimeLeft}s left
                 </p>
-                <p className="text-sm text-[#A6B0BE] mb-2">
-                  {mode === "test"
-                    ? "Choose the correct answer"
-                    : mode === "type"
-                      ? "Type the translation"
-                      : mode === "true-false"
-                        ? "Is this translation correct?"
-                        : "Memorize"}
-                </p>
-                <h2 className="text-white text-center text-[1.9rem] leading-tight sm:text-4xl font-bold">
-                  {promptText}
-                </h2>
+              ) : null}
+              <div className="flex items-center justify-center gap-2">
+                <h2 className="text-center text-[1.9rem] font-bold leading-tight text-white sm:text-4xl">{promptText}</h2>
+                {promptSpeechText ? (
+                  <EnglishSpeakButton text={promptSpeechText} className="bg-white/10 text-white hover:bg-white/15" />
+                ) : null}
               </div>
             </div>
+          </div>
 
-            {mode === "classic" ? (
-              <>
-                <div className="mb-4 sm:mb-8">
-                  {!showTranslation ? (
-                    <button
-                      onClick={() => setShowTranslation(true)}
-                      disabled={!isStarted || !!pendingWrongMode}
-                      className="w-full bg-[#6B7280] rounded-2xl py-5 sm:py-8 flex items-center justify-center gap-3 hover:bg-[#7a8492] transition-colors"
-                    >
-                      <Eye className="w-5 h-5 text-white" />
-                      <span className="text-white">Show translation</span>
-                    </button>
-                  ) : (
-                    <div className="w-full bg-[#6B7280] rounded-2xl py-5 sm:py-8 px-4 sm:px-6 text-center">
-                      <p className="text-white mb-2 text-lg font-semibold">{answerText}</p>
-                      {currentWord.description && (
-                        <p className="text-white/90 text-sm mb-2">{currentWord.description}</p>
-                      )}
-                      {currentWord.example && (
-                        <p className="text-[#A6B0BE] text-sm">"{currentWord.example}"</p>
-                      )}
-                    </div>
-                  )}
-                </div>
+          {mode === "test" ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {testOptions.map(option => {
+                const isSelected = selectedOption === option;
+                const isCorrect = option === answerText;
+                let optionClass = "memorize-glass-panel hover:bg-white/10";
+                if (selectedOption) {
+                  if (isCorrect) optionClass = "bg-[#10B981]";
+                  else if (isSelected) optionClass = "bg-[#EF4444]";
+                  else optionClass = "memorize-glass-panel opacity-70";
+                }
 
-                <div className="flex gap-3 sm:gap-4">
-                  <button
-                    onClick={() => handleAnswer(false)}
-                    disabled={!isStarted || !!pendingWrongMode}
-                    className="flex-1 h-14 sm:h-16 bg-[#0EA5FF] rounded-full flex items-center justify-center hover:bg-[#0c8fd9] transition-colors"
+                return (
+                  <div
+                    key={option}
+                    className={`flex min-h-14 items-center gap-2 rounded-2xl px-4 py-3 text-white transition ${optionClass}`}
                   >
-                    <span className="text-white font-semibold">Don't Know</span>
-                  </button>
-                  <button
-                    onClick={() => handleAnswer(true)}
-                    disabled={!isStarted || !!pendingWrongMode}
-                    className="flex-1 h-14 sm:h-16 bg-[#10B981] rounded-full flex items-center justify-center hover:bg-[#0ea073] transition-colors"
-                  >
-                    <span className="text-white font-semibold">I Know</span>
-                  </button>
-                </div>
-              </>
-            ) : null}
-
-            {mode === "test" ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2 sm:mb-0">
-                {testOptions.map((option) => {
-                  const isSelected = selectedOption === option;
-                  const isCorrect = option === answerText;
-
-                  let optionClass = "bg-[#1F2937] hover:bg-[#263447]";
-                  if (selectedOption) {
-                    if (isCorrect) {
-                      optionClass = "bg-[#10B981]";
-                    } else if (isSelected) {
-                      optionClass = "bg-[#EF4444]";
-                    } else {
-                      optionClass = "bg-[#1F2937] opacity-70";
-                    }
-                  }
-
-                  return (
                     <button
-                      key={option}
                       type="button"
-                      onClick={() => handleOptionSelect(option)}
-                      disabled={!isStarted || !!pendingWrongMode || !!selectedOption}
-                      className={`min-h-14 rounded-2xl px-4 py-3 text-left text-white transition ${optionClass}`}
+                      onClick={() => {
+                        if (selectedOption || pendingWrongMode) return;
+                        setSelectedOption(option);
+                        window.setTimeout(() => handleAnswer(option === answerText, "test"), 220);
+                      }}
+                      disabled={!!selectedOption || !!pendingWrongMode}
+                      className="flex-1 text-left"
                     >
                       {option}
                     </button>
-                  );
-                })}
-              </div>
-            ) : null}
-
-            {mode === "type" ? (
-              <div className="space-y-3">
-                <input
-                  ref={typeInputRef}
-                  value={typedAnswer}
-                  onChange={(e) => setTypedAnswer(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleTypedSubmit();
-                    }
-                  }}
-                  placeholder="Type your answer"
-                  className="w-full rounded-2xl bg-[#1F2937] border border-white/10 px-4 py-3 text-white outline-none focus:border-[#0EA5FF]"
-                  disabled={!isStarted || !!pendingWrongMode || typedResult !== null}
-                />
-                <Button
-                  onClick={handleTypedSubmit}
-                  disabled={!isStarted || !!pendingWrongMode || !typedAnswer.trim() || typedResult !== null}
-                  className="w-full rounded-2xl bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white py-3"
-                >
-                  Check Answer
-                </Button>
-                {typedResult && (
-                  <div
-                    className={`rounded-2xl px-4 py-3 text-sm ${
-                      typedResult === "correct"
-                        ? "bg-[#10B981] text-white"
-                        : "bg-[#EF4444] text-white"
-                    }`}
-                  >
-                    {typedResult === "correct" ? "Correct" : `Wrong. Correct: ${answerText}`}
+                    {optionsContainEnglish ? (
+                      <EnglishSpeakButton text={option} className="bg-black/10 text-white hover:bg-black/20" />
+                    ) : null}
                   </div>
-                )}
-              </div>
-            ) : null}
-
-            {mode === "true-false" ? (
-              <div className="space-y-3">
-                <div className="rounded-2xl bg-[#1F2937] border border-white/10 px-4 py-4 text-center text-white text-lg font-semibold">
-                  {trueFalsePrompt?.candidate || "..."}
+                );
+              })}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <input
+                ref={typeInputRef}
+                value={typedAnswer}
+                onChange={e => setTypedAnswer(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    submitTypedAnswer(typedAnswer);
+                  }
+                }}
+                placeholder="Type your answer"
+                className="memorize-glass-panel w-full rounded-2xl px-4 py-3 text-white outline-none focus:border-[#0EA5FF]"
+                disabled={!!pendingWrongMode || typedResult !== null}
+              />
+              <Button
+                onClick={() => {
+                  submitTypedAnswer(typedAnswer);
+                }}
+                disabled={!!pendingWrongMode || !typedAnswer.trim() || typedResult !== null}
+                className="w-full rounded-2xl bg-[#0EA5FF] hover:bg-[#0c8fd9] py-3 text-white"
+              >
+                Check Answer
+              </Button>
+              {typedResult ? (
+                <div className={`rounded-2xl px-4 py-3 text-sm ${typedResult === "correct" ? "bg-[#10B981]" : "bg-[#EF4444]"} text-white`}>
+                  {typedResult === "correct" ? (
+                    "Correct"
+                  ) : (
+                    <div className="flex items-center justify-between gap-3">
+                      <span>{`Wrong. Correct: ${answerText}`}</span>
+                      {answerSpeechText ? (
+                        <EnglishSpeakButton text={answerSpeechText} className="border-white/20 bg-white/10 text-white hover:bg-white/20" />
+                      ) : null}
+                    </div>
+                  )}
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <Button
-                    onClick={() => handleTrueFalseSubmit(true)}
-                    disabled={!isStarted || !!pendingWrongMode || trueFalseChoice !== null || !trueFalsePrompt}
-                    className={`rounded-2xl py-3 ${
-                      trueFalseChoice === true
-                        ? trueFalsePrompt?.isCorrect
-                          ? "bg-[#10B981]"
-                          : "bg-[#EF4444]"
-                        : "bg-[#0EA5FF] hover:bg-[#0c8fd9]"
-                    }`}
-                  >
-                    True
-                  </Button>
-                  <Button
-                    onClick={() => handleTrueFalseSubmit(false)}
-                    disabled={!isStarted || !!pendingWrongMode || trueFalseChoice !== null || !trueFalsePrompt}
-                    className={`rounded-2xl py-3 ${
-                      trueFalseChoice === false
-                        ? !trueFalsePrompt?.isCorrect
-                          ? "bg-[#10B981]"
-                          : "bg-[#EF4444]"
-                        : "bg-[#6B7280] hover:bg-[#7a8492]"
-                    }`}
-                  >
-                    False
-                  </Button>
-                </div>
-                {trueFalseChoice !== null && trueFalsePrompt && (
-                  <div
-                    className={`rounded-2xl px-4 py-3 text-sm ${
-                      trueFalseChoice === trueFalsePrompt.isCorrect
-                        ? "bg-[#10B981] text-white"
-                        : "bg-[#EF4444] text-white"
-                    }`}
-                  >
-                    {trueFalseChoice === trueFalsePrompt.isCorrect
-                      ? "Correct"
-                      : `Wrong. Correct: ${answerText}`}
-                  </div>
-                )}
-              </div>
-            ) : null}
-            {pendingWrongMode ? (
-              <div className="mt-3 rounded-xl border border-[#EF4444]/40 bg-[#EF4444]/15 px-3 py-2 text-sm text-white text-center">
-                Wrong answer. Tap anywhere on this card to continue, or wait 5 seconds.
-              </div>
-            ) : null}
-            {!isStarted ? (
-              null
-            ) : null}
-          </div>
-
-          {mode === "classic" && isDragging && (
-            <>
-              {dragOffset > 50 && (
-                <div className="absolute top-1/4 right-8 text-[#10B981] opacity-80 pointer-events-none">
-                  <div className="text-6xl">✓</div>
-                </div>
-              )}
-              {dragOffset < -50 && (
-                <div className="absolute top-1/4 left-8 text-[#0EA5FF] opacity-80 pointer-events-none">
-                  <div className="text-6xl">✗</div>
-                </div>
-              )}
-            </>
+              ) : null}
+            </div>
           )}
-        </div>
-      </div>
-      ) : (
-      <div className="flex-1 flex items-center justify-center px-4 py-3 sm:px-6 sm:py-10">
-        <div className="w-full max-w-2xl rounded-3xl border border-white/10 bg-[#15202B]/70 px-6 py-10 text-center">
-          <p className="text-[#A6B0BE]">Configure settings above and press Start Memorize.</p>
-        </div>
-      </div>
-      )}
 
-      <div className="text-center pb-5 sm:pb-8">
-        <span className="text-[#A6B0BE]">{remainingWords} remaining</span>
+          {pendingWrongMode ? (
+            <div className="mt-3 rounded-xl border border-[#EF4444]/40 bg-[#EF4444]/15 px-3 py-2 text-center text-sm text-white">
+              Wrong answer. Tap anywhere on this card to continue, or wait 5 seconds.
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );

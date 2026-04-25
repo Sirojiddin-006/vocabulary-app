@@ -39,6 +39,7 @@ export const folders = mysqlTable("folders", {
   description: text("description"),
   bookId: int("bookId"),
   unitNumber: int("unitNumber"),
+  sourceGlobalFolderId: int("sourceGlobalFolderId"),
   createdBy: int("createdBy"), // null means admin-created (global)
   isGlobal: boolean("isGlobal").default(false).notNull(), // true for admin folders
   createdAt: timestamp("createdAt").defaultNow().notNull(),

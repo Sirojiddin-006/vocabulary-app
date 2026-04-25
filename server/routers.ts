@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { createSessionToken, hashPassword, verifyPassword } from "./_core/auth";
 import { systemRouter } from "./_core/systemRouter";
+import { transcribeAudioBuffer } from "./_core/voiceTranscription";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
@@ -151,6 +152,19 @@ export const appRouter = router({
     getGlobalFoldersWithCounts: protectedProcedure.query(() =>
       db.getAllFoldersWithWordCounts()
     ),
+    getSavedGlobalFolderIds: protectedProcedure.query(({ ctx }) =>
+      db.getSavedGlobalFolderIds(ctx.user.id)
+    ),
+    searchGlobalFolders: protectedProcedure
+      .input(z.object({ query: z.string().min(1).max(100) }))
+      .query(({ input }) =>
+        db.searchGlobalFolderIds(input.query)
+      ),
+    searchGlobalWords: protectedProcedure
+      .input(z.object({ query: z.string().min(1).max(100) }))
+      .query(({ input }) =>
+        db.searchGlobalWords(input.query)
+      ),
     // Global books
     getGlobalBooks: protectedProcedure.query(() =>
       db.getGlobalBooks()
@@ -179,6 +193,12 @@ export const appRouter = router({
         db.createFolder(input.name, input.description || null, ctx.user.id)
       ),
 
+    deleteFolder: protectedProcedure
+      .input(z.object({ folderId: z.number() }))
+      .mutation(({ ctx, input }) =>
+        db.deletePersonalFolder(input.folderId, ctx.user.id)
+      ),
+
     // Get words in a folder
     getWords: protectedProcedure
       .input(z.object({ folderId: z.number() }))
@@ -190,6 +210,16 @@ export const appRouter = router({
       .input(z.object({ folderId: z.number() }))
       .query(({ input }) =>
         db.getGlobalWordsByFolderId(input.folderId)
+      ),
+    toggleSaveGlobalFolder: protectedProcedure
+      .input(z.object({ folderId: z.number() }))
+      .mutation(({ ctx, input }) =>
+        db.toggleSaveGlobalFolder(input.folderId, ctx.user.id)
+      ),
+    toggleSaveGlobalBook: protectedProcedure
+      .input(z.object({ bookId: z.number() }))
+      .mutation(({ ctx, input }) =>
+        db.toggleSaveGlobalBook(input.bookId, ctx.user.id)
       ),
 
     // Add a new word to a folder
@@ -204,6 +234,25 @@ export const appRouter = router({
       .mutation(({ ctx, input }) =>
         db.createWord(
           input.folderId,
+          input.english,
+          input.uzbek,
+          input.description || null,
+          input.example || null,
+          ctx.user.id
+        )
+      ),
+
+    updateWord: protectedProcedure
+      .input(z.object({
+        wordId: z.number(),
+        english: z.string().min(1).max(255),
+        uzbek: z.string().min(1).max(255),
+        description: z.string().max(1000).nullable().optional(),
+        example: z.string().max(500).nullable().optional(),
+      }))
+      .mutation(({ ctx, input }) =>
+        db.updateWord(
+          input.wordId,
           input.english,
           input.uzbek,
           input.description || null,
@@ -243,6 +292,33 @@ export const appRouter = router({
       .mutation(({ ctx, input }) =>
         db.updateUserProgress(ctx.user.id, input.wordId, input.known)
       ),
+  }),
+  voice: router({
+    transcribeBlob: protectedProcedure
+      .input(z.object({
+        audioBase64: z.string().min(1),
+        mimeType: z.string().min(1).max(100).optional(),
+        language: z.string().min(2).max(10).optional(),
+        prompt: z.string().max(400).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const result = await transcribeAudioBuffer({
+          audioBuffer: Buffer.from(input.audioBase64, "base64"),
+          mimeType: input.mimeType,
+          language: input.language,
+          prompt: input.prompt,
+        });
+
+        if ("error" in result) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: result.error,
+            cause: result,
+          });
+        }
+
+        return result;
+      }),
   }),
 });
 

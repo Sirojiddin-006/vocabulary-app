@@ -14,6 +14,7 @@ Before deploying, ensure you have:
 ## Environment Variables
 
 Create a `.env.local` file in the project root with the following variables:
+This project uses local username/password auth with JWT cookies (no OAuth runtime dependency).
 
 ```env
 # Database Configuration
@@ -22,26 +23,9 @@ DATABASE_URL=mysql://username:password@localhost:3306/vocabulary_db
 # JWT Secret for session management
 JWT_SECRET=your-secure-random-secret-key-here
 
-# Manus OAuth Configuration (if using Manus OAuth)
-VITE_APP_ID=your-manus-app-id
-OAUTH_SERVER_URL=https://api.manus.im
-VITE_OAUTH_PORTAL_URL=https://portal.manus.im
-
 # Application Settings
 VITE_APP_TITLE=Vocabulary Learning Website
 VITE_APP_LOGO=/logo.svg
-
-# Owner Information (for admin privileges)
-OWNER_OPEN_ID=your-admin-user-id
-OWNER_NAME=Admin User
-
-# Built-in APIs (if using Manus platform)
-BUILT_IN_FORGE_API_URL=https://api.manus.im
-BUILT_IN_FORGE_API_KEY=your-api-key
-
-# Frontend API Keys
-VITE_FRONTEND_FORGE_API_URL=https://api.manus.im
-VITE_FRONTEND_FORGE_API_KEY=your-frontend-api-key
 
 # Analytics (optional)
 VITE_ANALYTICS_ENDPOINT=https://analytics.example.com

@@ -1,5 +1,8 @@
 import "dotenv/config";
+import { readFile } from "node:fs/promises";
+import { eq, inArray } from "drizzle-orm";
 import * as db from "../server/db";
+import { userProgress, words } from "../drizzle/schema";
 
 const BOOK_TITLE = "Essential Words 4000";
 const BOOK_DESCRIPTION =
@@ -28,17 +31,61 @@ const UNIT_TOPICS = [
   "Academic Vocabulary",
 ];
 
-function buildUnitWords(unit: number) {
-  return Array.from({ length: 20 }, (_, index) => {
-    const wordNo = index + 1;
-    const english = `essential_u${unit}_w${wordNo}`;
-    return {
-      english,
-      uzbek: `muhim so'z ${unit}-${wordNo}`,
-      description: `Essential Words 4000, Unit ${unit}, item ${wordNo} explanation.`,
-      example: `Unit ${unit} example ${wordNo}: We use '${english}' in context.`,
-    };
-  });
+const BOOK_SOURCE_PATH = new URL("../book.txt", import.meta.url);
+
+type ParsedWord = {
+  english: string;
+  uzbek: string;
+  description: string | null;
+  example: string | null;
+};
+
+function parseBookText(text: string) {
+  const units = new Map<number, ParsedWord[]>();
+  const lines = text.split(/\r?\n/).map(line => line.trim());
+  const unitHeader = /Book\s+(\d+)\s*\|\s*Unit\s+(\d+)/i;
+  const wordLine = /^⚡️\/(.+?)\s*—\s*(.+)$/;
+
+  let currentUnit: number | null = null;
+  let pendingWord: ParsedWord | null = null;
+
+  const pushPending = () => {
+    if (!pendingWord || currentUnit === null) return;
+    const list = units.get(currentUnit) ?? [];
+    list.push(pendingWord);
+    units.set(currentUnit, list);
+    pendingWord = null;
+  };
+
+  for (const rawLine of lines) {
+    if (!rawLine) continue;
+
+    const headerMatch = rawLine.match(unitHeader);
+    if (headerMatch) {
+      pushPending();
+      currentUnit = Number(headerMatch[2]);
+      if (!units.has(currentUnit)) units.set(currentUnit, []);
+      continue;
+    }
+
+    const wordMatch = rawLine.match(wordLine);
+    if (wordMatch) {
+      pushPending();
+      const english = wordMatch[1].trim();
+      const uzbek = wordMatch[2].trim();
+      pendingWord = { english, uzbek, description: null, example: null };
+      continue;
+    }
+
+    if (rawLine.startsWith("— ") && pendingWord) {
+      pendingWord.description = rawLine.replace(/^—\s*/, "").trim() || null;
+      pushPending();
+    }
+  }
+
+  pushPending();
+
+  return units;
 }
 
 async function main() {
@@ -59,9 +106,24 @@ async function main() {
     throw new Error("Failed to resolve book id for Essential Words 4000");
   }
 
-  const globalFolders = await db.getAllFolders();
+  const bookText = await readFile(BOOK_SOURCE_PATH, "utf-8");
+  const parsedUnits = parseBookText(bookText);
+  if (parsedUnits.size === 0) {
+    throw new Error("No units parsed from book.txt");
+  }
 
-  for (let unit = 1; unit <= 20; unit += 1) {
+  const globalFolders = await db.getAllFolders();
+  const database = await db.getDb();
+
+  const unitNumbers = Array.from(parsedUnits.keys()).sort((a, b) => a - b);
+  const maxUnit = unitNumbers[unitNumbers.length - 1];
+
+  for (let unit = 1; unit <= maxUnit; unit += 1) {
+    const requiredWords = parsedUnits.get(unit);
+    if (!requiredWords || requiredWords.length === 0) {
+      throw new Error(`Missing words for unit ${unit} in book.txt`);
+    }
+
     const folderName = `${BOOK_TITLE} - Unit ${unit}`;
     const unitTopic = UNIT_TOPICS[unit - 1] || `Unit ${unit}`;
 
@@ -91,17 +153,18 @@ async function main() {
     }
 
     const currentWords = await db.getGlobalWordsByFolderId(folderId);
-    const requiredWords = buildUnitWords(unit);
-    const wordsToAdd = requiredWords.filter(
-      item => !currentWords.some(existing => existing.english.toLowerCase() === item.english)
-    );
-
-    if (wordsToAdd.length > 0) {
-      await db.importWords(folderId, wordsToAdd, null);
+    if (currentWords.length > 0) {
+      const wordIds = currentWords.map(word => word.id);
+      await database.delete(userProgress).where(inArray(userProgress.wordId, wordIds));
+      await database.delete(words).where(eq(words.folderId, folderId));
     }
+
+    await db.importWords(folderId, requiredWords, null);
   }
 
-  console.log("Essential Words 4000 (20 units x 20 words) seeded.");
+  console.log(
+    `Essential Words 4000 seeded from book.txt (${unitNumbers.length} units, ${unitNumbers.reduce((sum, unit) => sum + (parsedUnits.get(unit)?.length ?? 0), 0)} words).`
+  );
 }
 
 main().catch(error => {

@@ -1,282 +1,240 @@
-# Vocabulary Learning Website
+# Vocabulary App
 
-A modern, interactive vocabulary learning application built with React, Express, and MySQL. This application helps users memorize English words with an engaging flashcard system and progress tracking.
+Vocabulary App is a React + Express + MySQL vocabulary platform for learning English words with personal folders, a shared global library, and two separate study flows:
+- `Review`: repeat cards without marking them as learned
+- `Memorize`: answer-based study that updates learning progress
 
-## Features
+## Current Product
 
-### Core Features
+### Main sections
+- `Personal`: your own folders and words
+- `Global`: shared folders, books, and units
+- `Profile`: account and stats
 
-- **Interactive Flashcards**: Swipe-based card system for learning vocabulary
-- **Folder Organization**: Organize words into custom folders
-- **Progress Tracking**: Track which words you've learned
-- **User Authentication**: Secure login with OAuth support
-- **Role-Based Access Control**: Admin and user roles with different permissions
-- **Responsive Design**: Works seamlessly on desktop and mobile devices
+### Study sections
+- `Review`
+  - classic swipe/repetition flow
+  - no learned progress is saved
+  - supports `ENG -> UZB`, `UZB -> ENG`, and `Mixed`
+- `Memorize`
+  - active learning flow
+  - supports:
+    - `Test`
+    - `Type`
+  - correct answers update `userProgress`
+  - supports `ENG -> UZB`, `UZB -> ENG`, and `Mixed`
 
-### User Features
+### Word model
+Each word supports:
+- `english`
+- `uzbek`
+- `description`
+- `example`
 
-- **Create Folders**: Organize vocabulary by topics or difficulty levels
-- **Add Words**: Create custom word lists with English-Uzbek translations and examples
-- **Memorize Mode**: Interactive flashcard system with swipe gestures
-- **Progress Dashboard**: View learning statistics and progress
-- **User Profile**: Manage account settings and view learning history
+### UI highlights
+- mobile-first liquid-glass shell
+- top mini navbar with theme and language controls
+- bottom navigation for `Personal`, `Global`, `Profile`
+- bottom navigation supports liquid drag-and-snap interaction
+- global folder sorting:
+  - `Most words`
+  - `A-Z`
+  - `Z-A`
+- browser tab title and favicon cleaned up
 
-### Admin Features
-
-- **Global Word Lists**: Create vocabulary that's shared with all users
-- **Global Folders**: Organize shared vocabulary into folders
-- **User Management**: Monitor user activity and progress
-
-## Technology Stack
+## Tech Stack
 
 ### Frontend
-- **React 19**: Modern UI framework
-- **TypeScript**: Type-safe JavaScript
-- **Tailwind CSS 4**: Utility-first CSS framework
-- **tRPC**: End-to-end type-safe APIs
-- **Wouter**: Lightweight routing library
-- **Lucide React**: Beautiful icon library
+- React 19
+- TypeScript
+- Vite
+- Tailwind CSS 4
+- Wouter
+- tRPC client
 
 ### Backend
-- **Express.js**: Web framework
-- **tRPC**: Type-safe API framework
-- **Drizzle ORM**: Type-safe database ORM
-- **MySQL**: Relational database
-- **Zod**: Schema validation
+- Express
+- tRPC
+- Drizzle ORM
+- MySQL
+- Zod
 
-### Authentication
-- **Manus OAuth**: Secure authentication system
-- **JWT**: Session management
+### Auth
+- local username/password
+- JWT cookie session
 
 ## Project Structure
 
-```
+```text
 vocabulary-app/
-├── client/                 # Frontend React application
-│   ├── src/
-│   │   ├── pages/         # Page components
-│   │   ├── components/    # Reusable components
-│   │   ├── lib/           # Utilities and helpers
-│   │   ├── App.tsx        # Main app component
-│   │   └── main.tsx       # Entry point
-│   └── public/            # Static assets
-├── server/                # Backend Express server
-│   ├── routers.ts         # tRPC procedure definitions
-│   ├── db.ts              # Database queries
-│   └── _core/             # Core server utilities
-├── drizzle/               # Database schema and migrations
-│   ├── schema.ts          # Table definitions
-│   └── migrations/        # Database migrations
-├── shared/                # Shared types and constants
-└── package.json           # Project dependencies
+├── client/
+│   └── src/
+│       ├── components/
+│       ├── contexts/
+│       ├── lib/
+│       ├── pages/
+│       │   ├── Home.tsx
+│       │   ├── Folder.tsx
+│       │   ├── Review.tsx
+│       │   ├── Memorize.tsx
+│       │   ├── Global.tsx
+│       │   ├── GlobalFolder.tsx
+│       │   ├── GlobalReview.tsx
+│       │   ├── GlobalMemorize.tsx
+│       │   └── Profile.tsx
+│       ├── App.tsx
+│       ├── index.css
+│       └── main.tsx
+├── server/
+│   ├── _core/
+│   ├── db.ts
+│   ├── routers.ts
+│   └── storage.ts
+├── drizzle/
+├── scripts/
+├── shared/
+├── REPORT.md
+└── package.json
 ```
+
+## Requirements
+- Node.js 18+
+- pnpm
+- MySQL 8+
+
+## Environment
+
+Required env vars:
+- `DATABASE_URL`
+- `JWT_SECRET`
 
 ## Getting Started
 
-### Prerequisites
-
-- Node.js 18+ and npm/pnpm
-- MySQL 8.0+
-- Git
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/vocabulary-app.git
-   cd vocabulary-app
-   ```
-
-2. **Install dependencies**
-   ```bash
-   pnpm install
-   ```
-
-3. **Set up environment variables**
-   ```bash
-   cp .env.example .env.local
-   # Edit .env.local with your configuration
-   ```
-
-4. **Set up the database**
-   ```bash
-   pnpm db:push
-   ```
-
-5. **Start the development server**
-   ```bash
-   pnpm dev
-   ```
-
-The application will be available at `http://localhost:3000`
-
-## Usage
-
-### For Users
-
-1. **Sign Up**: Create an account using Manus OAuth
-2. **Create Folders**: Organize vocabulary by topics
-3. **Add Words**: Add English words with Uzbek translations and examples
-4. **Study**: Use the Memorize mode to practice with flashcards
-5. **Track Progress**: View your learning statistics in the Profile section
-
-### For Developers
-
-#### Adding a New Feature
-
-1. **Update Database Schema** (if needed)
-   ```typescript
-   // drizzle/schema.ts
-   export const newTable = mysqlTable("new_table", {
-     // Define columns
-   });
-   ```
-
-2. **Run Migrations**
-   ```bash
-   pnpm db:push
-   ```
-
-3. **Add Database Queries**
-   ```typescript
-   // server/db.ts
-   export async function getNewData() {
-     // Query implementation
-   }
-   ```
-
-4. **Create API Procedures**
-   ```typescript
-   // server/routers.ts
-   feature: router({
-     getData: protectedProcedure.query(({ ctx }) =>
-       db.getNewData(ctx.user.id)
-     ),
-   }),
-   ```
-
-5. **Build UI Components**
-   ```typescript
-   // client/src/pages/Feature.tsx
-   const { data } = trpc.feature.getData.useQuery();
-   ```
-
-## API Documentation
-
-### Authentication
-
-- **`auth.me`**: Get current user information
-- **`auth.logout`**: Logout current user
-
-### Vocabulary Management
-
-- **`vocabulary.getFolders`**: Get all accessible folders
-- **`vocabulary.getFolderById`**: Get specific folder details
-- **`vocabulary.createFolder`**: Create a new folder
-- **`vocabulary.getWords`**: Get words in a folder
-- **`vocabulary.addWord`**: Add a new word
-- **`vocabulary.getProgress`**: Get user progress for a folder
-- **`vocabulary.updateProgress`**: Update word mastery status
-
-## Database Schema
-
-### Users Table
-- `id`: Primary key
-- `openId`: OAuth identifier
-- `name`: User's name
-- `email`: User's email
-- `role`: User role (admin/user)
-- `createdAt`, `updatedAt`: Timestamps
-
-### Folders Table
-- `id`: Primary key
-- `name`: Folder name
-- `description`: Optional description
-- `createdBy`: User ID (null for admin folders)
-- `isGlobal`: Whether folder is visible to all users
-- `createdAt`, `updatedAt`: Timestamps
-
-### Words Table
-- `id`: Primary key
-- `folderId`: Reference to folder
-- `english`: English word
-- `uzbek`: Uzbek translation
-- `example`: Example sentence
-- `createdBy`: User ID (null for admin words)
-- `createdAt`, `updatedAt`: Timestamps
-
-### UserProgress Table
-- `id`: Primary key
-- `userId`: Reference to user
-- `wordId`: Reference to word
-- `known`: Whether user knows the word
-- `reviewCount`: Number of times reviewed
-- `lastReviewedAt`: Last review timestamp
-- `createdAt`, `updatedAt`: Timestamps
-
-## Role-Based Access Control
-
-### Admin Privileges
-- Create global folders visible to all users
-- Create global words visible to all users
-- Access all user data
-
-### User Privileges
-- Create personal folders (only visible to them)
-- Create personal words (only visible to them)
-- Access admin-created folders and words
-- Track personal progress
-
-## Card Ordering Bug Fix
-
-The application implements a proper queue-based system for the flashcard memorization:
-
-- When a user clicks "I Know", the card is removed from the queue
-- When a user clicks "Don't Know", the card is moved to the END of the queue (not the beginning)
-- This ensures users review difficult words multiple times without getting stuck
-
-## Deployment
-
-For detailed deployment instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md)
-
-### Quick Deploy
+1. Install dependencies
 
 ```bash
-# Build for production
+pnpm install
+```
+
+2. Configure environment variables
+
+Create your env file and set at least:
+
+```bash
+DATABASE_URL=...
+JWT_SECRET=...
+```
+
+3. Run migrations
+
+```bash
+pnpm db:push
+```
+
+4. Optional: seed global content
+
+```bash
+pnpm seed:global
+pnpm seed:essential
+```
+
+5. Start development server
+
+```bash
+pnpm dev
+```
+
+## Available Commands
+
+```bash
+pnpm dev
 pnpm build
-
-# Start production server
 pnpm start
-```
-
-## Testing
-
-Run tests:
-```bash
+pnpm check
 pnpm test
+pnpm format
+pnpm db:push
+pnpm seed:global
+pnpm seed:essential
 ```
 
-## Contributing
+## Key Frontend Routes
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+### Main app
+- `/`
+- `/global`
+- `/profile`
 
-## License
+### Personal folders
+- `/folder/:id`
+- `/review/:id`
+- `/memorize/:id`
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+### Global folders
+- `/global/folder/:id`
+- `/global/review/:id`
+- `/global/memorize/:id`
 
-## Support
+## Important Behavior
 
-For issues, questions, or suggestions:
-- Open an issue on GitHub
-- Check existing documentation
-- Review the DEPLOYMENT.md for setup help
+### Personal vs Global separation
+- personal folder lists show only user-created folders
+- global pages show only shared folders
+- saved standalone global folders become editable personal copies
+- saved global books stay grouped as books with units in personal area
+- editing a saved personal copy does not affect the global source
 
-## Acknowledgments
+### Editing rules
+- editable:
+  - personal folders
+  - saved standalone global folder copies
+- read-only:
+  - book/unit folders
+  - global source folders
 
-- Figma design template for UI inspiration
-- Manus platform for OAuth and infrastructure
-- React and open-source community
+### Review vs Memorize
+- `Review` is repetition only
+- `Memorize` is for tracked learning
+- `I Know` in `Review` does not mark the word as learned
+- correct answers in `Memorize` do update progress
+
+### Mixed direction
+- both `Review` and `Memorize` support `Mixed`
+- default direction is `ENG -> UZB`
+
+## Seed Data
+
+### Global topics
+- seeded via `scripts/seed-global.ts`
+
+### Essential Words 4000
+- seeded via `scripts/seed-essential-words-4000.ts`
+- includes:
+  - 1 book
+  - 20 units
+  - 400 words total
+  - descriptions and examples
+
+## Validation
+
+Run TypeScript validation:
+
+```bash
+pnpm check
+```
+
+Current expected status:
+- `pnpm check` passes
+
+## Recent Updates
+
+- Global page performance improved with SQL aggregation, debounce, cache, and DB indexes
+- Saved books now render in personal area as grouped books instead of mixing with flat folder cards
+- `Unsave Folder` and `Unsave Book` flows added
+- Word editing added for editable folders
+- Book folders locked to read-only for non-admin users
+
+## Related Docs
+- [REPORT.md](/home/kali/Projects/vocabulary-app/REPORT.md)
+- [DEPLOYMENT.md](/home/kali/Projects/vocabulary-app/DEPLOYMENT.md)
+- [API_REFERENCE.md](/home/kali/Projects/vocabulary-app/API_REFERENCE.md)

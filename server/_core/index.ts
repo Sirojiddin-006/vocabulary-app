@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import os from "os";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -26,6 +27,26 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
   throw new Error(`No available port found starting from ${startPort}`);
 }
 
+function getLocalNetworkUrls(host: string, port: number) {
+  if (!["0.0.0.0", "::"].includes(host)) {
+    return [`http://${host}:${port}/`];
+  }
+
+  const interfaces = os.networkInterfaces();
+  const urls = new Set<string>();
+
+  for (const addresses of Object.values(interfaces)) {
+    if (!addresses) continue;
+
+    for (const address of addresses) {
+      if (address.internal || address.family !== "IPv4") continue;
+      urls.add(`http://${address.address}:${port}/`);
+    }
+  }
+
+  return Array.from(urls);
+}
+
 async function startServer() {
   const app = express();
   const server = createServer(app);
@@ -48,14 +69,21 @@ async function startServer() {
   }
 
   const preferredPort = parseInt(process.env.PORT || "3000");
+  const host = process.env.HOST || "0.0.0.0";
   const port = await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
-  server.listen(port, () => {
+  server.listen(port, host, () => {
     console.log(`Server running on http://localhost:${port}/`);
+
+    for (const url of Array.from(getLocalNetworkUrls(host, port))) {
+      if (url !== `http://localhost:${port}/`) {
+        console.log(`Network access: ${url}`);
+      }
+    }
   });
 }
 

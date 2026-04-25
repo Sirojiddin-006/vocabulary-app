@@ -1,9 +1,39 @@
-import { eq, or, isNull, and, inArray } from "drizzle-orm";
+import { eq, or, isNull, isNotNull, and, inArray, like, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users, books, folders, words, userProgress } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+const GLOBAL_CACHE_TTL_MS = 30_000;
+
+type CacheEntry<T> = {
+  value: T;
+  expiresAt: number;
+};
+
+const globalCache = new Map<string, CacheEntry<unknown>>();
+
+function getCachedValue<T>(key: string): T | null {
+  const entry = globalCache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    globalCache.delete(key);
+    return null;
+  }
+  return entry.value as T;
+}
+
+function setCachedValue<T>(key: string, value: T): T {
+  globalCache.set(key, {
+    value,
+    expiresAt: Date.now() + GLOBAL_CACHE_TTL_MS,
+  });
+  return value;
+}
+
+function invalidateGlobalCache() {
+  globalCache.clear();
+}
 
 export async function getDb() {
   if (!_db) {
@@ -129,23 +159,177 @@ export async function getFolders(userId: number) {
   return db.select().from(folders).where(eq(folders.createdBy, userId));
 }
 
-export async function getAllFolders() {
+export async function getSavedGlobalFolderIds(userId: number) {
   const db = await getDb();
-  return db.select().from(folders).where(eq(folders.isGlobal, true));
+  const savedFolders = await db
+    .select({ sourceGlobalFolderId: folders.sourceGlobalFolderId })
+    .from(folders)
+    .where(and(eq(folders.createdBy, userId), isNotNull(folders.sourceGlobalFolderId)));
+
+  return savedFolders
+    .map(entry => entry.sourceGlobalFolderId)
+    .filter((folderId): folderId is number => folderId !== null);
+}
+
+async function cloneGlobalFolderToPersonal(globalFolderId: number, userId: number) {
+  const db = await getDb();
+  const globalFolder = await getGlobalFolderById(globalFolderId);
+  if (!globalFolder) {
+    throw new Error("Global folder not found");
+  }
+
+  const existing = await db
+    .select()
+    .from(folders)
+    .where(and(eq(folders.createdBy, userId), eq(folders.sourceGlobalFolderId, globalFolderId)))
+    .limit(1);
+
+  if (existing.length > 0) {
+    return existing[0];
+  }
+
+  await db.insert(folders).values({
+    name: globalFolder.name,
+    description: globalFolder.description,
+    bookId: globalFolder.bookId,
+    unitNumber: globalFolder.unitNumber,
+    sourceGlobalFolderId: globalFolder.id,
+    createdBy: userId,
+    isGlobal: false,
+  });
+
+  const createdFolder = await db
+    .select()
+    .from(folders)
+    .where(and(eq(folders.createdBy, userId), eq(folders.sourceGlobalFolderId, globalFolderId)))
+    .limit(1);
+
+  const personalFolder = createdFolder[0];
+  if (!personalFolder) {
+    throw new Error("Failed to create personal folder copy");
+  }
+
+  const globalWords = await getGlobalWordsByFolderId(globalFolderId);
+
+  if (globalWords.length > 0) {
+    await db.insert(words).values(
+      globalWords.map(word => ({
+        folderId: personalFolder.id,
+        english: word.english,
+        uzbek: word.uzbek,
+        description: word.description,
+        example: word.example,
+        createdBy: userId,
+      }))
+    );
+  }
+
+  return personalFolder;
+}
+
+export async function toggleSaveGlobalFolder(globalFolderId: number, userId: number) {
+  const db = await getDb();
+  const existing = await db
+    .select()
+    .from(folders)
+    .where(and(eq(folders.createdBy, userId), eq(folders.sourceGlobalFolderId, globalFolderId)))
+    .limit(1);
+
+  if (existing.length > 0) {
+    await deletePersonalFolder(existing[0].id, userId);
+    return { saved: false };
+  }
+
+  await cloneGlobalFolderToPersonal(globalFolderId, userId);
+  return { saved: true };
+}
+
+export async function toggleSaveGlobalBook(globalBookId: number, userId: number) {
+  const db = await getDb();
+  const globalBookFolders = await db
+    .select({ id: folders.id })
+    .from(folders)
+    .where(and(eq(folders.isGlobal, true), eq(folders.bookId, globalBookId)));
+
+  const folderIds = globalBookFolders.map(folder => folder.id);
+  if (folderIds.length === 0) {
+    throw new Error("Global book has no folders");
+  }
+
+  const savedCopies = await db
+    .select({
+      id: folders.id,
+      sourceGlobalFolderId: folders.sourceGlobalFolderId,
+    })
+    .from(folders)
+    .where(
+      and(
+        eq(folders.createdBy, userId),
+        isNotNull(folders.sourceGlobalFolderId),
+        inArray(folders.sourceGlobalFolderId, folderIds)
+      )
+    );
+
+  const savedSet = new Set(
+    savedCopies
+      .map(folder => folder.sourceGlobalFolderId)
+      .filter((folderId): folderId is number => folderId !== null)
+  );
+  const allSaved = folderIds.every(folderId => savedSet.has(folderId));
+
+  if (allSaved) {
+    for (const savedFolder of savedCopies) {
+      await deletePersonalFolder(savedFolder.id, userId);
+    }
+    return { saved: false };
+  }
+
+  for (const folderId of folderIds) {
+    if (!savedSet.has(folderId)) {
+      await cloneGlobalFolderToPersonal(folderId, userId);
+    }
+  }
+
+  return { saved: true };
+}
+
+export async function getAllFolders() {
+  const cached = getCachedValue<typeof folders.$inferSelect[]>("global:folders");
+  if (cached) return cached;
+  const db = await getDb();
+  const result = await db.select().from(folders).where(eq(folders.isGlobal, true));
+  return setCachedValue("global:folders", result);
 }
 
 export async function getAllFoldersWithWordCounts() {
+  const cached = getCachedValue<Array<{ folder: typeof folders.$inferSelect; wordCount: number }>>("global:folders-with-counts");
+  if (cached) return cached;
   const db = await getDb();
-  const allFolders = await getAllFolders();
-  const allWords = await db.select().from(words);
-  const counts = new Map<number, number>();
-  allWords.forEach(word => {
-    counts.set(word.folderId, (counts.get(word.folderId) ?? 0) + 1);
-  });
-  return allFolders.map(folder => ({
-    folder,
-    wordCount: counts.get(folder.id) ?? 0,
-  }));
+  const rows = await db
+    .select({
+      folder: folders,
+      wordCount: sql<number>`count(${words.id})`,
+    })
+    .from(folders)
+    .leftJoin(words, eq(words.folderId, folders.id))
+    .where(eq(folders.isGlobal, true))
+    .groupBy(
+      folders.id,
+      folders.name,
+      folders.description,
+      folders.bookId,
+      folders.unitNumber,
+      folders.sourceGlobalFolderId,
+      folders.createdBy,
+      folders.isGlobal,
+      folders.createdAt,
+      folders.updatedAt
+    );
+
+  return setCachedValue("global:folders-with-counts", rows.map(row => ({
+    folder: row.folder,
+    wordCount: Number(row.wordCount) || 0,
+  })));
 }
 
 export async function getAllWords() {
@@ -179,6 +363,93 @@ export async function getGlobalFolderById(folderId: number) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function searchGlobalFolderIds(query: string) {
+  const db = await getDb();
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+
+  const pattern = `%${trimmed}%`;
+
+  const folderMatches = await db
+    .select({ id: folders.id })
+    .from(folders)
+    .where(and(eq(folders.isGlobal, true), like(folders.name, pattern)));
+
+  const wordMatches = await db
+    .select({ folderId: words.folderId })
+    .from(words)
+    .innerJoin(folders, eq(words.folderId, folders.id))
+    .where(
+      and(
+        eq(folders.isGlobal, true),
+        or(like(words.english, pattern), like(words.uzbek, pattern))
+      )
+    );
+
+  const ids = new Set<number>();
+  folderMatches.forEach(item => ids.add(item.id));
+  wordMatches.forEach(item => ids.add(item.folderId));
+
+  return Array.from(ids);
+}
+
+export async function searchGlobalWords(query: string, limit = 20) {
+  const db = await getDb();
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+
+  const pattern = `%${trimmed}%`;
+
+  const results = await db
+    .select({
+      id: words.id,
+      english: words.english,
+      uzbek: words.uzbek,
+      description: words.description,
+      example: words.example,
+      folderId: folders.id,
+      folderName: folders.name,
+      bookId: folders.bookId,
+      unitNumber: folders.unitNumber,
+    })
+    .from(words)
+    .innerJoin(folders, eq(words.folderId, folders.id))
+    .where(
+      and(
+        eq(folders.isGlobal, true),
+        or(
+          like(words.english, pattern),
+          like(words.uzbek, pattern),
+          like(words.description, pattern),
+          like(words.example, pattern)
+        )
+      )
+    )
+    .limit(limit);
+
+  return results;
+}
+
+export async function deletePersonalFolder(folderId: number, userId: number) {
+  const db = await getDb();
+  const folder = await getFolderById(folderId, userId);
+  if (!folder || folder.isGlobal) {
+    return { deleted: false };
+  }
+
+  const folderWords = await db.select({ id: words.id }).from(words).where(eq(words.folderId, folderId));
+  const wordIds = folderWords.map(word => word.id);
+
+  if (wordIds.length > 0) {
+    await db.delete(userProgress).where(inArray(userProgress.wordId, wordIds));
+    await db.delete(words).where(eq(words.folderId, folderId));
+  }
+
+  await db.delete(folders).where(and(eq(folders.id, folderId), eq(folders.createdBy, userId)));
+
+  return { deleted: true };
+}
+
 export async function createFolder(
   name: string,
   description: string | null,
@@ -189,7 +460,7 @@ export async function createFolder(
   }
 ) {
   const db = await getDb();
-  return db.insert(folders).values({
+  const result = await db.insert(folders).values({
     name,
     description,
     bookId: options?.bookId ?? null,
@@ -197,6 +468,10 @@ export async function createFolder(
     createdBy,
     isGlobal: createdBy === null,
   });
+  if (createdBy === null) {
+    invalidateGlobalCache();
+  }
+  return result;
 }
 
 // ----------------------- Word queries -----------------------
@@ -214,10 +489,14 @@ export async function getWordsByFolderId(folderId: number, userId: number) {
 }
 
 export async function getGlobalWordsByFolderId(folderId: number) {
+  const cacheKey = `global:folder-words:${folderId}`;
+  const cached = getCachedValue<typeof words.$inferSelect[]>(cacheKey);
+  if (cached) return cached;
   const db = await getDb();
   const folder = await getGlobalFolderById(folderId);
   if (!folder) return [];
-  return db.select().from(words).where(eq(words.folderId, folderId));
+  const result = await db.select().from(words).where(eq(words.folderId, folderId));
+  return setCachedValue(cacheKey, result);
 }
 
 export async function createWord(
@@ -229,7 +508,16 @@ export async function createWord(
   createdBy: number | null
 ) {
   const db = await getDb();
-  return db.insert(words).values({
+  if (createdBy !== null) {
+    const folder = await getFolderById(folderId, createdBy);
+    if (!folder) {
+      throw new Error("Folder not found");
+    }
+    if (folder.bookId !== null) {
+      throw new Error("Book folders cannot be edited");
+    }
+  }
+  const result = await db.insert(words).values({
     folderId,
     english,
     uzbek,
@@ -237,6 +525,59 @@ export async function createWord(
     example,
     createdBy,
   });
+  if (createdBy === null) {
+    invalidateGlobalCache();
+  }
+  return result;
+}
+
+export async function updateWord(
+  wordId: number,
+  english: string,
+  uzbek: string,
+  description: string | null,
+  example: string | null,
+  userId: number
+) {
+  const db = await getDb();
+  const existingWord = await db
+    .select()
+    .from(words)
+    .where(and(eq(words.id, wordId), eq(words.createdBy, userId)))
+    .limit(1);
+
+  const word = existingWord[0];
+  if (!word) {
+    throw new Error("Word not found");
+  }
+
+  const folder = await getFolderById(word.folderId, userId);
+  if (!folder) {
+    throw new Error("Folder not found");
+  }
+
+  if (folder.bookId !== null) {
+    throw new Error("Book folders cannot be edited");
+  }
+
+  await db
+    .update(words)
+    .set({
+      english,
+      uzbek,
+      description,
+      example,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(words.id, wordId), eq(words.createdBy, userId)));
+
+  const updatedWord = await db
+    .select()
+    .from(words)
+    .where(and(eq(words.id, wordId), eq(words.createdBy, userId)))
+    .limit(1);
+
+  return updatedWord[0];
 }
 
 // ----------------------- User progress queries -----------------------
@@ -396,6 +737,15 @@ export async function importWords(
   createdBy: number | null
 ) {
   const db = await getDb();
+  if (createdBy !== null) {
+    const folder = await getFolderById(folderId, createdBy);
+    if (!folder) {
+      throw new Error("Folder not found");
+    }
+    if (folder.bookId !== null) {
+      throw new Error("Book folders cannot be edited");
+    }
+  }
   const values = wordsData.map(word => ({
     folderId,
     english: word.english.trim(),
@@ -406,13 +756,19 @@ export async function importWords(
   }));
 
   const result = await db.insert(words).values(values);
+  if (createdBy === null) {
+    invalidateGlobalCache();
+  }
   return result;
 }
 
 // ----------------------- Book queries -----------------------
 export async function getGlobalBooks() {
+  const cached = getCachedValue<typeof books.$inferSelect[]>("global:books");
+  if (cached) return cached;
   const db = await getDb();
-  return db.select().from(books).where(eq(books.isGlobal, true));
+  const result = await db.select().from(books).where(eq(books.isGlobal, true));
+  return setCachedValue("global:books", result);
 }
 
 export async function createBook(
@@ -421,10 +777,14 @@ export async function createBook(
   createdBy: number | null
 ) {
   const db = await getDb();
-  return db.insert(books).values({
+  const result = await db.insert(books).values({
     title,
     description,
     createdBy,
     isGlobal: createdBy === null,
   });
+  if (createdBy === null) {
+    invalidateGlobalCache();
+  }
+  return result;
 }

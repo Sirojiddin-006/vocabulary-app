@@ -29,6 +29,20 @@
       "when": 1772221000000,
       "tag": "0003_essential_books",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1772421268657,
+      "tag": "0004_tense_catseye",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1772442000000,
+      "tag": "0005_global_query_indexes",
+      "breakpoints": true
     }
   ]
 }
