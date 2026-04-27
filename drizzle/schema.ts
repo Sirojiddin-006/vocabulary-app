@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, uniqueIndex } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 
 /**
@@ -12,8 +12,10 @@ export const users = mysqlTable("users", {
    * Use this for relations between tables.
    */
   id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
-  openId: varchar("openId", { length: 64 }).notNull().unique(),
+  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per OAuth user. */
+  openId: varchar("openId", { length: 64 }).unique(),
+  /** Local username for password-based authentication. */
+  username: varchar("username", { length: 64 }).unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
@@ -37,10 +39,10 @@ export const folders = mysqlTable("folders", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
-  bookId: int("bookId"),
+  bookId: int("bookId").references(() => books.id, { onDelete: "cascade" }),
   unitNumber: int("unitNumber"),
   sourceGlobalFolderId: int("sourceGlobalFolderId"),
-  createdBy: int("createdBy"), // null means admin-created (global)
+  createdBy: int("createdBy").references(() => users.id, { onDelete: "cascade" }), // null means admin-created (global)
   isGlobal: boolean("isGlobal").default(false).notNull(), // true for admin folders
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -56,12 +58,12 @@ export type InsertFolder = typeof folders.$inferInsert;
  */
 export const words = mysqlTable("words", {
   id: int("id").autoincrement().primaryKey(),
-  folderId: int("folderId").notNull(),
+  folderId: int("folderId").notNull().references(() => folders.id, { onDelete: "cascade" }),
   english: varchar("english", { length: 255 }).notNull(),
   uzbek: varchar("uzbek", { length: 255 }).notNull(),
   description: text("description"),
   example: text("example"),
-  createdBy: int("createdBy"), // null means admin-created (global)
+  createdBy: int("createdBy").references(() => users.id, { onDelete: "cascade" }), // null means admin-created (global)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -74,14 +76,16 @@ export type InsertWord = typeof words.$inferInsert;
  */
 export const userProgress = mysqlTable("userProgress", {
   id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  wordId: int("wordId").notNull(),
+  userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  wordId: int("wordId").notNull().references(() => words.id, { onDelete: "cascade" }),
   known: boolean("known").default(false).notNull(),
   reviewCount: int("reviewCount").default(0).notNull(),
   lastReviewedAt: timestamp("lastReviewedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  userIdWordIdUnique: uniqueIndex("userProgress_userId_wordId_unique").on(table.userId, table.wordId),
+}));
 
 export type UserProgress = typeof userProgress.$inferSelect;
 export type InsertUserProgress = typeof userProgress.$inferInsert;
@@ -93,7 +97,7 @@ export const books = mysqlTable("books", {
   id: int("id").autoincrement().primaryKey(),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
-  createdBy: int("createdBy"),
+  createdBy: int("createdBy").references(() => users.id, { onDelete: "cascade" }),
   isGlobal: boolean("isGlobal").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

@@ -1,7 +1,8 @@
-import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import { COOKIE_NAME, SEVEN_DAYS_MS } from "@shared/const";
 import { TRPCError } from "@trpc/server";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { createSessionToken, hashPassword, verifyPassword } from "./_core/auth";
+import { logger } from "./_core/logger";
 import { systemRouter } from "./_core/systemRouter";
 import { transcribeAudioBuffer } from "./_core/voiceTranscription";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
@@ -56,12 +57,17 @@ export const appRouter = router({
 
         const token = await createSessionToken({
           userId: user.id,
-          username: user.openId,
+          username: user.username ?? user.openId ?? "",
         });
         const cookieOptions = getSessionCookieOptions(ctx.req);
         ctx.res.cookie(COOKIE_NAME, token, {
           ...cookieOptions,
-          maxAge: ONE_YEAR_MS,
+          maxAge: SEVEN_DAYS_MS,
+        });
+
+        logger.info("auth.login_succeeded", {
+          userId: user.id,
+          loginMethod: user.loginMethod ?? "local",
         });
 
         return { user: toSafeUser(user) };
@@ -76,6 +82,10 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const user = await db.getUserByUsername(input.username);
         if (!user || !user.passwordHash || !user.passwordSalt) {
+          logger.warn("auth.login_failed", {
+            username: input.username,
+            reason: "user_not_found_or_no_local_password",
+          });
           throw new TRPCError({
             code: "UNAUTHORIZED",
             message: "Invalid username or password",
@@ -88,6 +98,11 @@ export const appRouter = router({
           user.passwordHash
         );
         if (!valid) {
+          logger.warn("auth.login_failed", {
+            username: input.username,
+            userId: user.id,
+            reason: "invalid_password",
+          });
           throw new TRPCError({
             code: "UNAUTHORIZED",
             message: "Invalid username or password",
@@ -98,12 +113,17 @@ export const appRouter = router({
 
         const token = await createSessionToken({
           userId: user.id,
-          username: user.openId,
+          username: user.username ?? user.openId ?? "",
         });
         const cookieOptions = getSessionCookieOptions(ctx.req);
         ctx.res.cookie(COOKIE_NAME, token, {
           ...cookieOptions,
-          maxAge: ONE_YEAR_MS,
+          maxAge: SEVEN_DAYS_MS,
+        });
+
+        logger.info("auth.login_succeeded", {
+          userId: user.id,
+          loginMethod: user.loginMethod ?? "local",
         });
 
         return { user: toSafeUser(user) };
@@ -143,6 +163,9 @@ export const appRouter = router({
     // Get all folders accessible to the user
     getFolders: protectedProcedure.query(({ ctx }) =>
       db.getFolders(ctx.user.id)
+    ),
+    getFoldersWithCounts: protectedProcedure.query(({ ctx }) =>
+      db.getFoldersWithWordCounts(ctx.user.id)
     ),
     // Global section: all folders across users
     getGlobalFolders: protectedProcedure.query(() =>
@@ -292,6 +315,33 @@ export const appRouter = router({
       .mutation(({ ctx, input }) =>
         db.updateUserProgress(ctx.user.id, input.wordId, input.known)
       ),
+    setKnownStatus: protectedProcedure
+      .input(z.object({
+        wordId: z.number(),
+        known: z.boolean(),
+      }))
+      .mutation(({ ctx, input }) =>
+        db.setWordKnownStatus(ctx.user.id, input.wordId, input.known)
+      ),
+    recordStudySession: protectedProcedure
+      .input(z.object({
+        folderId: z.number(),
+        knownCount: z.number().int().min(0),
+        unknownCount: z.number().int().min(0),
+        scope: z.enum(["personal", "global"]),
+        mode: z.enum(["memorize", "review"]),
+      }))
+      .mutation(({ ctx, input }) => {
+        logger.info("study.session_completed", {
+          userId: ctx.user.id,
+          folderId: input.folderId,
+          knownCount: input.knownCount,
+          unknownCount: input.unknownCount,
+          scope: input.scope,
+          mode: input.mode,
+        });
+        return { success: true } as const;
+      }),
   }),
   voice: router({
     transcribeBlob: protectedProcedure

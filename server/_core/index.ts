@@ -1,10 +1,14 @@
 import "dotenv/config";
+import cors from "cors";
 import express from "express";
+import { sql } from "drizzle-orm";
 import { createServer } from "http";
 import net from "net";
 import os from "os";
 import OpenAI from "openai";
+import rateLimit from "express-rate-limit";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
+import { getDb } from "../db";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { ENV } from "./env";
@@ -49,7 +53,63 @@ function getLocalNetworkUrls(host: string, port: number) {
   return Array.from(urls);
 }
 
+function isAllowedCorsOrigin(origin: string, allowedOrigins: string[]) {
+  if (allowedOrigins.includes(origin)) {
+    return true;
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    return false;
+  }
+
+  try {
+    const { hostname } = new URL(origin);
+    return hostname === "localhost" || hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
+function validateEnv(): void {
+  const errors: string[] = [];
+
+  if (!process.env.DATABASE_URL) {
+    errors.push("DATABASE_URL is required but not set");
+  }
+
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) {
+    errors.push("JWT_SECRET is required but not set");
+  } else if (jwtSecret.length < 32) {
+    errors.push(
+      `JWT_SECRET too short (${jwtSecret.length} chars, minimum 32 required)`
+    );
+  }
+
+  if (errors.length > 0) {
+    console.error("Startup validation failed:");
+    errors.forEach(error => console.error("  -", error));
+    process.exit(1);
+  }
+
+  console.log("Environment validation passed");
+}
+
+async function checkDbConnection(): Promise<void> {
+  try {
+    const db = await getDb();
+    await db.execute(sql`SELECT 1`);
+    console.log("Database connection OK");
+  } catch (error) {
+    console.error("Database connection failed:", error);
+    process.exit(1);
+  }
+}
+
 async function startServer() {
+  validateEnv();
+  await checkDbConnection();
+
   const app = express();
   const server = createServer(app);
   const openai = ENV.openAiApiKey
@@ -65,9 +125,42 @@ async function startServer() {
     "shimmer",
   ] as const);
 
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    message: { error: "Too many attempts, please try again later" },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  const ttsLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 30,
+    message: { error: "TTS rate limit exceeded" },
+  });
+  const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(",").map(origin => origin.trim())
+    : ["http://localhost:3000", "http://localhost:5173"];
+
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        if (!origin || isAllowedCorsOrigin(origin, allowedOrigins)) {
+          callback(null, true);
+        } else {
+          callback(new Error(`CORS: origin ${origin} not allowed`));
+        }
+      },
+      credentials: true,
+    })
+  );
+
   // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.use(express.json({ limit: "5mb" }));
+  app.use(express.urlencoded({ limit: "5mb", extended: true }));
+  app.use("/api/tts", ttsLimiter);
+  app.use("/api/trpc/auth.signIn", authLimiter);
+  app.use("/api/trpc/auth.signUp", authLimiter);
 
   app.post("/api/tts", async (req, res) => {
     const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
@@ -143,6 +236,21 @@ async function startServer() {
       }
     }
   });
+
+  const shutdown = (signal: string) => {
+    console.log(`\n${signal} received - shutting down gracefully...`);
+    server.close(() => {
+      console.log("HTTP server closed.");
+      process.exit(0);
+    });
+    setTimeout(() => {
+      console.error("Graceful shutdown timeout - forcing exit.");
+      process.exit(1);
+    }, 10_000);
+  };
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
 startServer().catch(console.error);

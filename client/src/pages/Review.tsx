@@ -7,6 +7,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useAppLocale } from "@/contexts/AppLocaleContext";
+import { getCopy } from "@/lib/appCopy";
 import { ChevronLeft, Eye, Loader2, RotateCcw } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -53,6 +55,9 @@ function resolveDirection(direction: StudyDirection, seed: number): Exclude<Stud
 
 export default function Review() {
   const { isAuthenticated } = useAuth();
+  const { locale } = useAppLocale();
+  const copy = getCopy(locale);
+  const utils = trpc.useUtils();
   const [, setLocation] = useLocation();
   const params = useParams();
   const folderId = parseInt(params.id || "0");
@@ -79,6 +84,12 @@ export default function Review() {
     { folderId },
     { enabled: isAuthenticated && folderId > 0 }
   );
+  const setKnownStatusMutation = trpc.vocabulary.setKnownStatus.useMutation({
+    onSuccess: () => {
+      utils.vocabulary.getProgress.invalidate({ folderId });
+    },
+  });
+  const recordStudySessionMutation = trpc.vocabulary.recordStudySession.useMutation();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -153,6 +164,7 @@ export default function Review() {
 
   const handleAnswer = (known: boolean) => {
     if (!currentWord) return;
+    setKnownStatusMutation.mutate({ wordId: currentWord.id, known });
     setSwipeDirection(known ? "right" : "left");
 
     window.setTimeout(() => {
@@ -167,6 +179,19 @@ export default function Review() {
       setShowTranslation(false);
     }, 240);
   };
+
+  useEffect(() => {
+    if (currentWord || sessionTotal === 0 || wordQueue.length !== 0 || recordStudySessionMutation.isSuccess) {
+      return;
+    }
+    recordStudySessionMutation.mutate({
+      folderId,
+      knownCount: completedWords,
+      unknownCount: 0,
+      scope: "personal",
+      mode: "review",
+    });
+  }, [completedWords, currentWord, folderId, recordStudySessionMutation, sessionTotal, wordQueue.length]);
 
   const handleStart = (clientX: number, clientY: number) => {
     const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
@@ -260,12 +285,12 @@ export default function Review() {
   if (!folder || words.length === 0) {
     return (
       <div className="min-h-screen w-full app-bg scholar-title flex flex-col items-center justify-center">
-        <p className="scholar-muted mb-4">No words in this folder</p>
+        <p className="scholar-muted mb-4">{copy.review.noWords}</p>
         <Button
           onClick={() => setLocation(`/folder/${folderId}`)}
           className="bg-[var(--accent)] hover:bg-[var(--accent-strong)] scholar-title rounded-full"
         >
-          Go Back
+          {copy.common.back}
         </Button>
       </div>
     );
@@ -275,14 +300,14 @@ export default function Review() {
     return (
       <div className="flex items-center justify-center min-h-screen w-full px-6 app-bg">
         <div className="text-center">
-          <p className="scholar-title text-xl font-bold mb-4">Review completed</p>
-          <p className="scholar-muted mb-8">Session finished. No progress was marked as learned.</p>
+          <p className="scholar-title text-xl font-bold mb-4">{copy.review.completed}</p>
+          <p className="scholar-muted mb-8">{copy.review.completedBody}</p>
           <div className="flex items-center justify-center gap-3">
             <Button onClick={restartSession} className="bg-[#10B981] hover:bg-[#0ea073] scholar-title rounded-full">
-              Repeat Again
+              {copy.review.repeatAgain}
             </Button>
             <Button onClick={() => setLocation(`/folder/${folderId}`)} className="bg-[var(--accent)] hover:bg-[var(--accent-strong)] scholar-title rounded-full">
-              Back
+              {copy.common.back}
             </Button>
           </div>
         </div>
@@ -298,27 +323,27 @@ export default function Review() {
             onClick={() => setLocation(`/folder/${folderId}`)}
             className="glass-icon-button"
             type="button"
-            aria-label="Back"
+            aria-label={copy.common.back}
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
 
           <div className="min-w-0 flex-1 text-center">
             <h1 className="truncate font-display text-base text-strong">{folder.name}</h1>
-            <p className="text-[11px] text-dim">Review</p>
+            <p className="text-[11px] text-dim">{copy.review.title}</p>
           </div>
 
           <div className="flex items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button type="button" className="page-navbar-pill rounded-full px-3 py-1.5 text-xs">
-                  {direction === "en-uz" ? "ENG" : direction === "uz-en" ? "UZB" : "Mix"}
+                  {direction === "en-uz" ? copy.review.directionEnglish : direction === "uz-en" ? copy.review.directionUzbek : copy.review.directionMixed}
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="glass-dropdown min-w-36 rounded-2xl p-1.5">
-                <DropdownMenuItem onClick={() => setDirection("en-uz")} className="glass-dropdown-item">ENG {"->"} UZB</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setDirection("uz-en")} className="glass-dropdown-item">UZB {"->"} ENG</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setDirection("mixed")} className="glass-dropdown-item">Mixed</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setDirection("en-uz")} className="glass-dropdown-item">{copy.review.directionEnglishToUzbek}</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setDirection("uz-en")} className="glass-dropdown-item">{copy.review.directionUzbekToEnglish}</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setDirection("mixed")} className="glass-dropdown-item">{copy.review.directionMixed}</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <button onClick={restartSession} className="glass-icon-button" type="button" aria-label="Restart">
@@ -331,7 +356,7 @@ export default function Review() {
       <div className="mx-auto w-full max-w-6xl px-4 pt-3 sm:px-6">
         <div className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-4 py-3">
           <div className="mb-2 flex items-center justify-between text-xs scholar-muted">
-            <span>Review progress</span>
+            <span>{copy.review.progress}</span>
             <span>{completedWords}/{sessionTotal}</span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-[color-mix(in_srgb,_var(--text-primary)_12%,_transparent)]">
@@ -348,23 +373,23 @@ export default function Review() {
               <div className="memorize-card memorize-preview-card pointer-events-none relative h-full min-h-[360px] w-full rounded-3xl p-4 sm:min-h-[460px] md:min-h-[560px] sm:p-8 flex flex-col justify-between select-none">
                 <div className="flex-1 flex items-center justify-center">
                   <div className="w-full text-center">
-                    <p className="mb-3 text-xs uppercase tracking-[0.3em] scholar-muted">Word {Math.min(sessionTotal, completedWords + 2)} of {sessionTotal}</p>
-                    <p className="mb-2 text-sm scholar-muted">Review</p>
+                    <p className="mb-3 text-xs uppercase tracking-[0.3em] scholar-muted">{copy.review.wordOf.replace("{current}", String(Math.min(sessionTotal, completedWords + 2))).replace("{total}", String(sessionTotal))}</p>
+                    <p className="mb-2 text-sm scholar-muted">{copy.review.title}</p>
                     <h2 className="text-center text-[1.9rem] font-bold leading-tight scholar-muted sm:text-4xl">{previewPromptText}</h2>
                   </div>
                 </div>
                 <div className="mb-4 sm:mb-8">
                   <div className="memorize-glass-panel flex w-full items-center justify-center gap-3 rounded-2xl py-5 opacity-80 sm:py-8">
                     <Eye className="h-5 w-5 scholar-muted" />
-                    <span className="scholar-muted">Show translation</span>
+                    <span className="scholar-muted">{copy.review.showTranslation}</span>
                   </div>
                 </div>
                 <div className="flex gap-3 sm:gap-4">
                   <div className="memorize-action-button flex h-14 flex-1 items-center justify-center rounded-full bg-[var(--accent)] sm:h-16">
-                    <span className="text-sm sm:text-base scholar-title font-semibold">Don't Know</span>
+                    <span className="text-sm sm:text-base scholar-title font-semibold">{copy.review.dontKnow}</span>
                   </div>
                   <div className="memorize-action-button flex h-14 flex-1 items-center justify-center rounded-full bg-[#10B981] sm:h-16">
-                    <span className="text-sm sm:text-base scholar-title font-semibold">I Know</span>
+                    <span className="text-sm sm:text-base scholar-title font-semibold">{copy.review.iKnow}</span>
                   </div>
                 </div>
               </div>
@@ -395,8 +420,8 @@ export default function Review() {
           >
             <div className="flex flex-1 items-center justify-center">
               <div className="w-full text-center">
-                <p className="mb-3 text-xs uppercase tracking-[0.3em] scholar-muted">Word {completedWords + 1} of {sessionTotal}</p>
-                <p className="mb-2 text-sm scholar-muted">Review</p>
+                <p className="mb-3 text-xs uppercase tracking-[0.3em] scholar-muted">{copy.review.wordOf.replace("{current}", String(completedWords + 1)).replace("{total}", String(sessionTotal))}</p>
+                <p className="mb-2 text-sm scholar-muted">{copy.review.title}</p>
                 <div className="flex items-center justify-center gap-2">
                   <h2 className="text-center text-[1.9rem] font-bold leading-tight scholar-title sm:text-4xl">{promptText}</h2>
                   {promptSpeechText ? (
@@ -413,7 +438,7 @@ export default function Review() {
                   className="memorize-glass-panel flex w-full items-center justify-center gap-3 rounded-2xl py-5 transition-colors hover:bg-white/10 sm:py-8"
                 >
                   <Eye className="h-5 w-5 scholar-title" />
-                  <span className="scholar-title">Show translation</span>
+                  <span className="scholar-title">{copy.review.showTranslation}</span>
                 </button>
               ) : (
                 <div className="memorize-glass-panel w-full rounded-2xl px-4 py-5 text-center sm:px-6 sm:py-8">
@@ -431,10 +456,10 @@ export default function Review() {
 
             <div className="flex gap-3 sm:gap-4">
               <button onClick={() => handleAnswer(false)} className="memorize-action-button flex h-14 flex-1 items-center justify-center rounded-full bg-[var(--accent)] hover:bg-[var(--accent-strong)] sm:h-16">
-                <span className="text-sm sm:text-base scholar-title font-semibold">Don't Know</span>
+                <span className="text-sm sm:text-base scholar-title font-semibold">{copy.review.dontKnow}</span>
               </button>
               <button onClick={() => handleAnswer(true)} className="memorize-action-button flex h-14 flex-1 items-center justify-center rounded-full bg-[#10B981] hover:bg-[#0ea073] sm:h-16">
-                <span className="text-sm sm:text-base scholar-title font-semibold">I Know</span>
+                <span className="text-sm sm:text-base scholar-title font-semibold">{copy.review.iKnow}</span>
               </button>
             </div>
           </div>

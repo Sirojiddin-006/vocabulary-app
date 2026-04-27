@@ -1,4 +1,5 @@
-import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import { COOKIE_NAME, SEVEN_DAYS_MS } from "@shared/const";
+import { logger } from "./logger";
 import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { parse as parseCookieHeader } from "cookie";
 import type { Request } from "express";
@@ -17,6 +18,11 @@ export type SessionPayload = {
 function getSessionSecret() {
   if (!ENV.cookieSecret) {
     throw new Error("JWT_SECRET is not configured");
+  }
+  if (ENV.cookieSecret.length < 32) {
+    throw new Error(
+      `JWT_SECRET too short: ${ENV.cookieSecret.length} chars. Minimum 32 required.`
+    );
   }
   return new TextEncoder().encode(ENV.cookieSecret);
 }
@@ -52,7 +58,7 @@ export async function createSessionToken(
   options: { expiresInMs?: number } = {}
 ): Promise<string> {
   const issuedAt = Date.now();
-  const expiresInMs = options.expiresInMs ?? ONE_YEAR_MS;
+  const expiresInMs = options.expiresInMs ?? SEVEN_DAYS_MS;
   const expirationSeconds = Math.floor((issuedAt + expiresInMs) / 1000);
   const secretKey = getSessionSecret();
 
@@ -88,7 +94,9 @@ export async function verifySession(
       username,
     };
   } catch (error) {
-    console.warn("[Auth] Session verification failed", String(error));
+    logger.warn("auth.session_verification_failed", {
+      message: String(error),
+    });
     return null;
   }
 }
@@ -109,4 +117,3 @@ export async function authenticateRequest(req: Request): Promise<User> {
 
   return user;
 }
-

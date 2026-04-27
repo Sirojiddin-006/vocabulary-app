@@ -4,12 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Loader2, ChevronLeft, Play, RotateCcw } from "lucide-react";
+import { useAppLocale } from "@/contexts/AppLocaleContext";
+import { getCopy } from "@/lib/appCopy";
 import { trpc } from "@/lib/trpc";
 import { useMemo, useState } from "react";
 import { useLocation, useParams } from "wouter";
 
 export default function GlobalFolder() {
   const { isAuthenticated } = useAuth();
+  const { locale } = useAppLocale();
+  const copy = getCopy(locale);
   const [, setLocation] = useLocation();
   const params = useParams();
   const folderId = parseInt(params.id || "0");
@@ -53,12 +57,12 @@ export default function GlobalFolder() {
   if (!folder) {
     return (
       <div className="min-h-screen w-full app-bg scholar-title flex flex-col items-center justify-center">
-        <p className="scholar-muted mb-4">Folder not found</p>
+        <p className="scholar-muted mb-4">{copy.globalFolder.folderNotFound}</p>
         <Button
           onClick={() => setLocation("/global")}
           className="bg-[var(--accent)] hover:bg-[var(--accent-strong)] scholar-title rounded-full"
         >
-          Go Back
+          {copy.common.back}
         </Button>
       </div>
     );
@@ -83,7 +87,7 @@ export default function GlobalFolder() {
 
       <div className="mx-auto w-full max-w-6xl px-6 py-5">
         <div className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <span className="scholar-muted">{words.length} words</span>
+          <span className="scholar-muted">{words.length} {copy.common.words}</span>
           <div className="flex flex-col sm:flex-row gap-2">
             <Button
               onClick={() => setLocation(`/global/review/${folderId}`)}
@@ -91,14 +95,14 @@ export default function GlobalFolder() {
               className="border-[var(--surface-border)] scholar-title hover:bg-[var(--accent-muted)] rounded-full text-sm"
             >
               <RotateCcw className="w-4 h-4 mr-2" />
-              Review
+              {copy.globalFolder.review}
             </Button>
             <Button
               onClick={() => setLocation(`/global/memorize/${folderId}`)}
               className="bg-[color-mix(in_srgb,_var(--accent)_55%,_#10B981)] hover:bg-[color-mix(in_srgb,_var(--accent-strong)_45%,_#0b7a57)] scholar-title rounded-full text-sm"
             >
               <Play className="w-4 h-4 mr-2" />
-              Memorize
+              {copy.globalFolder.memorize}
             </Button>
           </div>
         </div>
@@ -109,7 +113,7 @@ export default function GlobalFolder() {
           <Input
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search words..."
+            placeholder={copy.common.searchWords}
             className="bg-[var(--surface)] border-[var(--surface-border)] scholar-title placeholder:text-[var(--text-secondary)]"
           />
           <div className="flex gap-2">
@@ -120,7 +124,7 @@ export default function GlobalFolder() {
                 ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/10"
                 : "border-[var(--surface-border)] scholar-title hover:bg-[var(--accent-muted)]"}
             >
-              A - Z
+              {copy.globalFolder.sortAZ}
             </Button>
             <Button
               onClick={() => setSort("za")}
@@ -129,7 +133,7 @@ export default function GlobalFolder() {
                 ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/10"
                 : "border-[var(--surface-border)] scholar-title hover:bg-[var(--accent-muted)]"}
             >
-              Z - A
+              {copy.globalFolder.sortZA}
             </Button>
           </div>
         </div>
@@ -142,7 +146,7 @@ export default function GlobalFolder() {
           </div>
         ) : filteredWords.length === 0 ? (
           <div className="text-center py-12 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)]">
-            <p className="scholar-muted mb-4">No words found.</p>
+            <p className="scholar-muted mb-4">{copy.globalFolder.noWords}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

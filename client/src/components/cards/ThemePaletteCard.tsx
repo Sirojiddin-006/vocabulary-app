@@ -1,4 +1,6 @@
 import { cn } from "@/lib/utils";
+import { useAppLocale } from "@/contexts/AppLocaleContext";
+import { getCopy } from "@/lib/appCopy";
 
 type ThemePaletteCardProps = {
   name: string;
@@ -9,6 +11,8 @@ type ThemePaletteCardProps = {
 };
 
 export function ThemePaletteCard({ name, description, colors, isActive, onClick }: ThemePaletteCardProps) {
+  const { locale } = useAppLocale();
+  const copy = getCopy(locale);
   return (
     <button
       type="button"
@@ -23,7 +27,7 @@ export function ThemePaletteCard({ name, description, colors, isActive, onClick 
           <p className="text-base font-semibold scholar-title">{name}</p>
           <p className="text-sm scholar-muted">{description}</p>
         </div>
-        {isActive ? <span className="rounded-[var(--radius-badge)] bg-[var(--accent)] px-2 py-1 text-xs font-semibold text-black">ACTIVE</span> : null}
+        {isActive ? <span className="rounded-[var(--radius-badge)] bg-[var(--accent)] px-2 py-1 text-xs font-semibold text-black">{copy.common.active}</span> : null}
       </div>
       <div className="flex items-center gap-2">
         {colors.map(color => (

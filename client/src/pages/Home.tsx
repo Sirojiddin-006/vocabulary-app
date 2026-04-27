@@ -55,13 +55,13 @@ export default function Home() {
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
 
-  const { data: folders = [], isLoading: foldersLoading } = trpc.vocabulary.getFolders.useQuery(undefined, {
+  const { data: folders = [], isLoading: foldersLoading, isError: foldersError } = trpc.vocabulary.getFolders.useQuery(undefined, {
     enabled: isAuthenticated,
   });
-  const { data: globalBooks = [] } = trpc.vocabulary.getGlobalBooks.useQuery(undefined, {
+  const { data: globalBooks = [], isError: globalBooksError } = trpc.vocabulary.getGlobalBooks.useQuery(undefined, {
     enabled: isAuthenticated,
   });
-  const { data: totalStats } = trpc.auth.getTotalStats.useQuery(undefined, {
+  const { data: totalStats, isError: totalStatsError } = trpc.auth.getTotalStats.useQuery(undefined, {
     enabled: isAuthenticated,
   });
 
@@ -75,7 +75,7 @@ export default function Home() {
       ]);
     },
     onError: error => {
-      toast.error(error.message || "Failed to create folder");
+      toast.error(error.message || copy.home.failedCreateFolder);
     },
   });
 
@@ -88,7 +88,7 @@ export default function Home() {
       ]);
     },
     onError: error => {
-      toast.error(error.message || "Failed to update saved book");
+      toast.error(error.message || copy.global.failedSavedBook);
     },
   });
 
@@ -139,9 +139,9 @@ export default function Home() {
         <div className="scholar-surface-elevated mx-auto w-full max-w-4xl p-8">
           <div className="flex flex-col gap-7 md:flex-row md:items-center md:justify-between">
             <div className="max-w-xl">
-              <p className="text-xs uppercase tracking-[0.28em] scholar-muted">Vocabulary</p>
+              <p className="text-xs uppercase tracking-[0.28em] scholar-muted">{copy.home.heroEyebrow}</p>
               <h1 className="mt-2 font-display text-5xl font-semibold scholar-title">{APP_TITLE}</h1>
-              <p className="mt-4 text-base scholar-muted">Learn words with folders, books, and measurable progress.</p>
+              <p className="mt-4 text-base scholar-muted">{copy.home.heroDescription}</p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Button
                   className="h-11 rounded-[var(--radius-button)] bg-[var(--accent)] px-6 text-black hover:bg-[var(--accent-strong)] hover:text-white"
@@ -164,10 +164,18 @@ export default function Home() {
     );
   }
 
+  if (foldersError || globalBooksError || totalStatsError) {
+    return (
+      <div className="flex items-center justify-center min-h-[200px] text-destructive">
+        Failed to load. Please refresh and try again.
+      </div>
+    );
+  }
+
   return (
     <MobileAppShell
       title={copy.home.title}
-      subtitle={`${copy.home.welcome}, ${user?.name || "Admin"}`}
+      subtitle={`${copy.home.welcome}, ${user?.name || copy.profile.defaultName}`}
       avatar={(user?.name || "A").slice(0, 1).toUpperCase()}
     >
       <div className="space-y-6">
@@ -176,31 +184,33 @@ export default function Home() {
             icon={<FolderOpen className="h-4 w-4" />}
             label={copy.home.folders}
             value={foldersCounter}
-            trend={folders.length > 0 ? "+2 this week" : "Start by creating one"}
+            trend={folders.length > 0 ? copy.home.foldersTrend : copy.home.foldersTrendEmpty}
           />
           <StatCard
             icon={<BookOpen className="h-4 w-4" />}
             label={copy.home.totalWords}
             value={wordsCounter}
-            trend={`${masteredPct}% mastered`}
+            trend={`${masteredPct}% ${copy.home.mastered}`}
           />
           <StatCard
             icon={<CheckCircle2 className="h-4 w-4" />}
             label={copy.home.known}
             value={knownCounter}
-            trend={knownWords === 0 ? "Keep going" : "Great momentum"}
+            trend={knownWords === 0 ? copy.home.keepGoing : copy.home.greatMomentum}
           />
         </section>
 
         <section className="scholar-surface-elevated p-5">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-display text-2xl font-semibold scholar-title">{copy.home.progress}</h2>
-            <p className="text-sm scholar-muted">{knownWords} / {totalWords} words mastered</p>
+            <p className="text-sm scholar-muted">{knownWords} / {totalWords} {copy.home.wordsMastered}</p>
           </div>
           <ProgressBar value={knownWords} max={Math.max(1, totalWords)} heightClassName="h-3" />
           <p className="mt-3 text-sm scholar-muted">
             {masteredPct}% {copy.home.known.toLowerCase()}.
-            {recommendedFolder ? ` Start with "${recommendedFolder.name}" folder.` : " Add your first folder to begin."}
+            {recommendedFolder
+              ? ` ${copy.home.startWithFolder.replace("{name}", recommendedFolder.name)}`
+              : ` ${copy.home.addFirstFolder}`}
           </p>
         </section>
 
@@ -228,14 +238,14 @@ export default function Home() {
               ))}
             </div>
           ) : savedBooks.length === 0 ? (
-            <div className="scholar-surface p-8 text-center scholar-muted">No saved books yet.</div>
+            <div className="scholar-surface p-8 text-center scholar-muted">{copy.home.noSavedBooks}</div>
           ) : (
             <div className="space-y-3">
               {savedBooks.map(({ bookId, book, units }) => (
                 <BookCard
                   key={bookId}
-                  title={book?.title ?? `Book ${bookId}`}
-                  description={book?.description || "Foundational vocabulary collection."}
+                  title={book?.title ?? `${copy.home.bookFallback} ${bookId}`}
+                  description={book?.description || copy.home.defaultBookDescription}
                   unitCount={units.length}
                   totalWords={units.length * 20}
                   knownWords={0}
@@ -243,7 +253,7 @@ export default function Home() {
                   savePending={toggleSaveGlobalBookMutation.isPending}
                   onSave={() => toggleSaveGlobalBookMutation.mutate({ bookId })}
                   onOpen={() => setLocation(`/book/${bookId}/units`)}
-                  actionLabel="Open"
+                  actionLabel={copy.common.open}
                 />
               ))}
             </div>
@@ -282,11 +292,11 @@ export default function Home() {
       <Dialog open={showNewFolderDialog} onOpenChange={setShowNewFolderDialog}>
         <DialogContent className="scholar-surface-elevated border-[var(--surface-border)]">
           <DialogHeader>
-            <DialogTitle className="font-display text-2xl">Create New Folder</DialogTitle>
+            <DialogTitle className="font-display text-2xl">{copy.home.createNewFolder}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <Input
-              placeholder="Folder name"
+              placeholder={copy.home.folderNamePlaceholder}
               value={newFolderName}
               onChange={e => setNewFolderName(e.target.value)}
               className="border-[var(--surface-border)] bg-[var(--surface)] scholar-title"

@@ -7,6 +7,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useAppLocale } from "@/contexts/AppLocaleContext";
+import { getCopy } from "@/lib/appCopy";
 import { ChevronLeft, Loader2, RotateCcw } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -69,6 +71,9 @@ function parseDirectionFromUrl(): StudyDirection {
 
 export default function Memorize() {
   const { isAuthenticated } = useAuth();
+  const { locale } = useAppLocale();
+  const copy = getCopy(locale);
+  const utils = trpc.useUtils();
   const [, setLocation] = useLocation();
   const params = useParams();
   const folderId = parseInt(params.id || "0");
@@ -117,22 +122,27 @@ export default function Memorize() {
     answeredMode: StudyMode;
   } | null>(null);
 
-  const { data: words = [], isLoading: wordsLoading } =
+  const { data: words = [], isLoading: wordsLoading, isError: wordsError } =
     trpc.vocabulary.getWords.useQuery(
       { folderId },
       { enabled: isAuthenticated && folderId > 0 }
     );
-  const { data: folder, isLoading: folderLoading } =
+  const { data: folder, isLoading: folderLoading, isError: folderError } =
     trpc.vocabulary.getFolderById.useQuery(
       { folderId },
       { enabled: isAuthenticated && folderId > 0 }
     );
-  const { data: folderProgress } = trpc.vocabulary.getProgress.useQuery(
+  const { data: folderProgress, isError: progressError } = trpc.vocabulary.getProgress.useQuery(
     { folderId },
     { enabled: isAuthenticated && folderId > 0 }
   );
 
-  const updateProgressMutation = trpc.vocabulary.updateProgress.useMutation();
+  const setKnownStatusMutation = trpc.vocabulary.setKnownStatus.useMutation({
+    onSuccess: () => {
+      utils.vocabulary.getProgress.invalidate({ folderId });
+    },
+  });
+  const recordStudySessionMutation = trpc.vocabulary.recordStudySession.useMutation();
 
   const knownByWordId = useMemo(() => {
     const map = new Map<number, boolean>();
@@ -316,14 +326,7 @@ export default function Memorize() {
     answeredMode: StudyMode
   ) => {
     if (!currentWord) return;
-
-    const wasKnownBefore = knownByWordId.get(currentWord.id) === true;
-
-    if (correct) {
-      updateProgressMutation.mutate({ wordId: currentWord.id, known: true });
-    } else if (wasKnownBefore) {
-      updateProgressMutation.mutate({ wordId: currentWord.id, known: false });
-    }
+    setKnownStatusMutation.mutate({ wordId: currentWord.id, known: correct });
 
     setModeStats(prev => {
       const current = prev[answeredMode];
@@ -445,6 +448,17 @@ export default function Memorize() {
     setDirection(getDefaultDirectionForMode(nextMode));
   };
 
+  useEffect(() => {
+    if (!isSessionDone || recordStudySessionMutation.isSuccess) return;
+    recordStudySessionMutation.mutate({
+      folderId,
+      knownCount: correctCount,
+      unknownCount: results.filter(item => !item.correct).length,
+      scope: "personal",
+      mode: "memorize",
+    });
+  }, [correctCount, folderId, isSessionDone, recordStudySessionMutation, results]);
+
   if (folderLoading || wordsLoading) {
     return (
       <div className="min-h-screen w-full app-bg flex items-center justify-center">
@@ -453,15 +467,23 @@ export default function Memorize() {
     );
   }
 
+  if (folderError || wordsError || progressError) {
+    return (
+      <div className="flex items-center justify-center min-h-[200px] text-destructive">
+        Failed to load. Please refresh and try again.
+      </div>
+    );
+  }
+
   if (!folder || words.length === 0) {
     return (
       <div className="min-h-screen w-full app-bg scholar-title flex flex-col items-center justify-center">
-        <p className="scholar-muted mb-4">No words in this folder</p>
+        <p className="scholar-muted mb-4">{copy.memorize.noWords}</p>
         <Button
           onClick={() => setLocation(`/folder/${folderId}`)}
           className="bg-[var(--accent)] hover:bg-[var(--accent-strong)] scholar-title rounded-full"
         >
-          Go Back
+          {copy.common.back}
         </Button>
       </div>
     );
@@ -489,17 +511,17 @@ export default function Memorize() {
       <div className="app-bg min-h-screen flex items-center justify-center px-4">
         <div className="memorize-card w-full max-w-3xl rounded-3xl p-6 sm:p-8">
           <h2 className="font-display text-3xl font-semibold scholar-title text-center">
-            Session Complete
+            {copy.memorize.sessionComplete}
           </h2>
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             <div className="memorize-glass-panel rounded-2xl p-4">
-              <p className="scholar-title font-semibold">Correct</p>
+              <p className="scholar-title font-semibold">{copy.memorize.correct}</p>
               <p className="mt-1 text-2xl scholar-title">
                 {correctCountDone} / {results.length} ({correctPct}%)
               </p>
             </div>
             <div className="memorize-glass-panel rounded-2xl p-4">
-              <p className="scholar-title font-semibold">Incorrect</p>
+              <p className="scholar-title font-semibold">{copy.memorize.incorrect}</p>
               <p className="mt-1 text-2xl scholar-title">
                 {incorrectCount} / {results.length} ({incorrectPct}%)
               </p>
@@ -507,21 +529,21 @@ export default function Memorize() {
           </div>
 
           <div className="mt-4 space-y-2 text-sm scholar-muted">
-            <p>Removed from known: {removedKnownCount}</p>
+            <p>{copy.memorize.removedFromKnown}: {removedKnownCount}</p>
             <p>
-              Still unknown: {Math.max(0, incorrectCount - removedKnownCount)}
+              {copy.memorize.stillUnknown}: {Math.max(0, incorrectCount - removedKnownCount)}
             </p>
           </div>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             <div className="memorize-glass-panel rounded-2xl p-4">
-              <p className="mb-2 scholar-title font-medium">Correct words</p>
+              <p className="mb-2 scholar-title font-medium">{copy.memorize.correctWords}</p>
               <p className="text-sm scholar-muted">
                 {correctWords.length > 0 ? correctWords.join(", ") : "-"}
               </p>
             </div>
             <div className="memorize-glass-panel rounded-2xl p-4">
-              <p className="mb-2 scholar-title font-medium">Incorrect words</p>
+              <p className="mb-2 scholar-title font-medium">{copy.memorize.incorrectWords}</p>
               <p className="text-sm scholar-muted">
                 {incorrectWords.length > 0 ? incorrectWords.join(", ") : "-"}
               </p>
@@ -534,14 +556,14 @@ export default function Memorize() {
               disabled={incorrectCount === 0}
               className="rounded-full bg-[var(--accent)] hover:bg-[var(--accent-strong)] scholar-title"
             >
-              Retry incorrect
+              {copy.memorize.retryIncorrect}
             </Button>
             <Button
               onClick={() => setLocation(`/folder/${folderId}`)}
               variant="outline"
               className="rounded-full border-[var(--surface-border)] scholar-title hover:bg-[var(--accent-muted)]"
             >
-              Done
+              {copy.memorize.done}
             </Button>
           </div>
         </div>
@@ -557,7 +579,7 @@ export default function Memorize() {
             onClick={() => setLocation(`/folder/${folderId}`)}
             className="glass-icon-button"
             type="button"
-            aria-label="Back"
+            aria-label={copy.common.back}
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -565,7 +587,7 @@ export default function Memorize() {
             <h1 className="truncate font-display text-base text-strong">
               {folder.name}
             </h1>
-            <p className="text-[11px] text-dim">Memorize</p>
+            <p className="text-[11px] text-dim">{copy.memorize.title}</p>
           </div>
           <div className="flex items-center gap-2">
             <DropdownMenu>
@@ -574,7 +596,7 @@ export default function Memorize() {
                   type="button"
                   className="page-navbar-pill rounded-full px-3 py-1.5 text-xs"
                 >
-                  {mode === "test" ? "Test" : "Type"}
+                  {mode === "test" ? copy.memorize.modeTest : copy.memorize.modeType}
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
@@ -585,13 +607,13 @@ export default function Memorize() {
                   onClick={() => handleModeChange("test")}
                   className="glass-dropdown-item"
                 >
-                  Test
+                  {copy.memorize.modeTest}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => handleModeChange("type")}
                   className="glass-dropdown-item"
                 >
-                  Type
+                  {copy.memorize.modeType}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -602,10 +624,10 @@ export default function Memorize() {
                   className="page-navbar-pill rounded-full px-3 py-1.5 text-xs"
                 >
                   {direction === "en-uz"
-                    ? "ENG"
+                    ? copy.memorize.directionEnglish
                     : direction === "uz-en"
-                      ? "UZB"
-                      : "Mix"}
+                      ? copy.memorize.directionUzbek
+                      : copy.memorize.directionMixed}
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
@@ -616,19 +638,19 @@ export default function Memorize() {
                   onClick={() => setDirection("en-uz")}
                   className="glass-dropdown-item"
                 >
-                  ENG {"->"} UZB
+                  {copy.memorize.directionEnglishToUzbek}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setDirection("uz-en")}
                   className="glass-dropdown-item"
                 >
-                  UZB {"->"} ENG
+                  {copy.memorize.directionUzbekToEnglish}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setDirection("mixed")}
                   className="glass-dropdown-item"
                 >
-                  Mixed
+                  {copy.memorize.directionMixed}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -655,9 +677,9 @@ export default function Memorize() {
               onClick={() => setShowStats(prev => !prev)}
               className="transition hover:text-[var(--text-primary)]"
             >
-              {showStats ? "Hide stats" : "Show stats"}
+              {showStats ? copy.memorize.hideStats : copy.memorize.showStats}
             </button>
-            <span>✓ {correctCount} correct</span>
+            <span>✓ {correctCount} {copy.memorize.correct.toLowerCase()}</span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-[color-mix(in_srgb,_var(--text-primary)_12%,_transparent)]">
             <div
@@ -668,20 +690,20 @@ export default function Memorize() {
           {showStats ? (
             <div className="mt-2 flex flex-wrap gap-2 text-[11px] scholar-muted">
               <span className="scholar-title">
-                Test {modeStats.test.correct}/{modeStats.test.attempted}
+                {copy.memorize.modeTest} {modeStats.test.correct}/{modeStats.test.attempted}
               </span>
               <span className="scholar-title">
-                Type {modeStats.type.correct}/{modeStats.type.attempted}
+                {copy.memorize.modeType} {modeStats.type.correct}/{modeStats.type.attempted}
               </span>
             </div>
           ) : null}
         </div>
       </div>
 
-      <div className="flex flex-1 items-center justify-center px-4 py-3 sm:px-6 sm:py-10">
+      <div className="flex flex-1 items-start justify-center px-4 py-3 sm:px-6 md:items-center sm:py-10">
         <div
           onClick={handleCardClick}
-          className="memorize-card relative flex w-full max-w-3xl h-[360px] sm:h-[460px] md:h-[560px] flex-col justify-between rounded-3xl p-4 sm:p-8"
+          className="memorize-card relative flex w-full max-w-3xl flex-col gap-5 rounded-3xl p-4 sm:p-8 md:h-[560px] md:justify-between"
           style={{
             transform: isCardReady
               ? "translateY(0) scale(1)"
@@ -692,19 +714,19 @@ export default function Memorize() {
             overflow: "hidden",
           }}
         >
-          <div className="flex flex-1 items-center justify-center">
+          <div className="flex shrink-0 items-center justify-center md:flex-1">
             <div className="w-full text-center">
               <p className="mb-3 text-xs uppercase tracking-[0.3em] scholar-muted">
-                Word {completedWords + 1} of {sessionTotal}
+                {copy.review.wordOf.replace("{current}", String(completedWords + 1)).replace("{total}", String(sessionTotal))}
               </p>
               <p className="mb-2 text-sm scholar-muted">
                 {mode === "test"
-                  ? "Choose the correct answer"
-                  : "Type the translation"}
+                  ? copy.memorize.chooseCorrectAnswer
+                  : copy.memorize.typeTranslation}
               </p>
               {mode === "type" ? (
                 <p className="mb-3 text-xs uppercase tracking-[0.24em] text-[#FBBF24]">
-                  {typeTimeLeft}s left
+                  {copy.memorize.timeLeft}: {typeTimeLeft}s
                 </p>
               ) : null}
               <div className="flex items-center justify-center gap-2">
@@ -721,9 +743,9 @@ export default function Memorize() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-3">
+          <div className="flex min-h-0 flex-col gap-3">
             {mode === "test" ? (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2">
                 {testOptions.map(option => {
                   const isSelected = selectedOption === option;
                   const isRightOption = option === answerText;
@@ -773,7 +795,7 @@ export default function Memorize() {
                       submitTypedAnswer(typedAnswer);
                     }
                   }}
-                  placeholder="Type your answer"
+                  placeholder={copy.memorize.typeAnswer}
                   className="memorize-glass-panel w-full rounded-2xl px-4 py-3 scholar-title outline-none focus:border-[var(--accent)]"
                   disabled={feedbackState !== null || typedResult !== null}
                 />
@@ -786,15 +808,15 @@ export default function Memorize() {
                   }
                   className="w-full rounded-2xl bg-[var(--accent)] hover:bg-[var(--accent-strong)] py-3 scholar-title"
                 >
-                  Check Answer
+                  {copy.memorize.checkAnswer}
                 </Button>
                 {typedResult ? (
                   <div
                     className={`rounded-2xl px-4 py-3 text-sm ${typedResult === "correct" ? "bg-[#10B981]" : "bg-[#EF4444]"} scholar-title`}
                   >
                     {typedResult === "correct"
-                      ? "Correct"
-                      : `Wrong. Correct: ${answerText}`}
+                      ? copy.memorize.answerCorrect
+                      : copy.memorize.answerWrong.replace("{answer}", answerText)}
                   </div>
                 ) : null}
               </div>
@@ -808,9 +830,9 @@ export default function Memorize() {
                       : "border border-[#EF4444]/40 bg-[#EF4444]/15"
                   }`}
                 >
-                  {feedbackState === "correct" ? "✓ Correct!" : "✗ Incorrect!"}{" "}
-                  Next in {countdown}...
-                  <span className="ml-1 text-xs opacity-70">(tap to skip)</span>
+                  {feedbackState === "correct" ? `✓ ${copy.memorize.correct}!` : `✗ ${copy.memorize.incorrect}!`}{" "}
+                  {copy.memorize.nextIn.replace("{countdown}", String(countdown))}
+                  <span className="ml-1 text-xs opacity-70">{copy.memorize.tapToSkip}</span>
                 </div>
               ) : null}
             </div>

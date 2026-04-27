@@ -2,6 +2,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+import { useAppLocale } from "@/contexts/AppLocaleContext";
+import { getCopy } from "@/lib/appCopy";
 
 type BookCardProps = {
   title: string;
@@ -26,8 +28,10 @@ export function BookCard({
   onOpen,
   onSave,
   savePending,
-  actionLabel = "Open",
+  actionLabel,
 }: BookCardProps) {
+  const { locale } = useAppLocale();
+  const copy = getCopy(locale);
   const progress = totalWords > 0 ? (knownWords / totalWords) * 100 : 0;
 
   return (
@@ -37,7 +41,7 @@ export function BookCard({
           <div className="flex items-center gap-2">
             <h3 className="truncate text-lg font-semibold scholar-title">{title}</h3>
             {isSaved ? (
-              <Badge className="rounded-[var(--radius-badge)] border-transparent bg-[var(--accent-muted)] text-[var(--accent)]">Saved</Badge>
+              <Badge className="rounded-[var(--radius-badge)] border-transparent bg-[var(--accent-muted)] text-[var(--accent)]">{copy.common.saved}</Badge>
             ) : null}
           </div>
           {description ? <p className="mt-1 text-sm scholar-muted line-clamp-2">{description}</p> : null}
@@ -53,14 +57,14 @@ export function BookCard({
             }}
             className="rounded-[var(--radius-badge)] border border-[var(--surface-border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs scholar-muted transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
           >
-            {isSaved ? "Saved" : "Save"}
+            {isSaved ? copy.common.saved : copy.common.save}
           </button>
         ) : null}
       </div>
 
       <div className="mt-4 flex items-center justify-between text-sm scholar-muted">
-        <span>{unitCount} units</span>
-        <span>{knownWords}/{totalWords} known</span>
+        <span>{unitCount} {copy.common.units}</span>
+        <span>{knownWords}/{totalWords} {copy.common.known}</span>
       </div>
       <div className="mt-2">
         <ProgressBar value={progress} max={100} />
@@ -71,7 +75,7 @@ export function BookCard({
           onClick={onOpen}
           className="h-9 rounded-[var(--radius-button)] bg-[var(--accent)] px-4 text-sm font-medium text-black hover:bg-[var(--accent-strong)] hover:text-white"
         >
-          {actionLabel}
+          {actionLabel || copy.common.open}
         </Button>
       </div>
     </Card>

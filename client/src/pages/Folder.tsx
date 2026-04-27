@@ -7,6 +7,8 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useAppLocale } from "@/contexts/AppLocaleContext";
+import { getCopy } from "@/lib/appCopy";
 import { BookmarkX, Loader2, Pencil, Plus, ChevronLeft, Play, RotateCcw, Trash2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useMemo, useState } from "react";
@@ -14,6 +16,8 @@ import { useLocation, useParams } from "wouter";
 
 export default function Folder() {
   const { user, isAuthenticated } = useAuth();
+  const { locale } = useAppLocale();
+  const copy = getCopy(locale);
   const [, setLocation] = useLocation();
   const params = useParams();
   const folderId = parseInt(params.id || "0");
@@ -35,13 +39,13 @@ export default function Folder() {
   const [sort, setSort] = useState<"az" | "za">("az");
 
   // Fetch folder
-  const { data: folder, isLoading: folderLoading } = trpc.vocabulary.getFolderById.useQuery(
+  const { data: folder, isLoading: folderLoading, isError: folderError } = trpc.vocabulary.getFolderById.useQuery(
     { folderId },
     { enabled: isAuthenticated && folderId > 0 }
   );
 
   // Fetch words in folder
-  const { data: words = [], isLoading: wordsLoading } = trpc.vocabulary.getWords.useQuery(
+  const { data: words = [], isLoading: wordsLoading, isError: wordsError } = trpc.vocabulary.getWords.useQuery(
     { folderId },
     { enabled: isAuthenticated && folderId > 0 }
   );
@@ -71,7 +75,7 @@ export default function Folder() {
       utils.vocabulary.getWords.invalidate({ folderId });
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to add word");
+      toast.error(error.message || copy.folder.failedAddWord);
     },
   });
   const updateWordMutation = trpc.vocabulary.updateWord.useMutation({
@@ -80,10 +84,10 @@ export default function Folder() {
       setNewWord({ english: "", uzbek: "", description: "", example: "" });
       setShowEditWordDialog(false);
       utils.vocabulary.getWords.invalidate({ folderId });
-      toast.success("Word updated");
+      toast.success(copy.folder.wordUpdated);
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to update word");
+      toast.error(error.message || copy.folder.failedUpdateWord);
     },
   });
   // Import bulk words mutation
@@ -91,28 +95,28 @@ export default function Folder() {
     onSuccess: () => {
       setBulkImportText("");
       setShowBulkImportDialog(false);
-      toast.success("Words imported successfully");
+      toast.success(copy.folder.wordsImported);
       utils.vocabulary.getWords.invalidate({ folderId });
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to import words");
+      toast.error(error.message || copy.folder.failedImportWords);
     },
   });
 
   const deleteFolderMutation = trpc.vocabulary.deleteFolder.useMutation({
     onSuccess: () => {
-      toast.success("Folder deleted");
+      toast.success(copy.folder.folderDeleted);
       utils.vocabulary.getFolders.invalidate();
       utils.auth.getTotalStats.invalidate();
       setLocation("/");
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to delete folder");
+      toast.error(error.message || copy.folder.failedDeleteFolder);
     },
   });
   const toggleSaveGlobalFolderMutation = trpc.vocabulary.toggleSaveGlobalFolder.useMutation({
     onSuccess: async (result) => {
-      toast.success(result.saved ? "Saved to personal folders" : "Removed from personal folders");
+      toast.success(result.saved ? copy.folder.savedFolderAdded : copy.folder.savedFolderRemoved);
       await Promise.all([
         utils.vocabulary.getFolders.invalidate(),
         utils.vocabulary.getSavedGlobalFolderIds.invalidate(),
@@ -122,20 +126,20 @@ export default function Folder() {
       setLocation("/");
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to update saved folder");
+      toast.error(error.message || copy.folder.failedSavedFolder);
     },
   });
 
   const isSavedGlobalFolder = Boolean(folder?.sourceGlobalFolderId);
   const isBookManagedFolder = folder?.bookId !== null;
-  const folderActionLabel = isSavedGlobalFolder ? "Unsave Folder" : "Delete Folder";
+  const folderActionLabel = isSavedGlobalFolder ? copy.folder.unsaveFolder : copy.folder.deleteFolder;
   const folderActionDescription = isSavedGlobalFolder
-    ? "This saved global folder will be removed from your personal folders."
-    : "This will permanently delete this folder and all words inside it. This action cannot be undone.";
+    ? copy.folder.unsaveDescription
+    : copy.folder.deleteDescription;
   const editingHelpText = isBookManagedFolder
-    ? "Book units are read-only. Only admins can manage book words."
+    ? copy.folder.bookReadOnly
     : isSavedGlobalFolder
-      ? "This is your personal copy. Any edits here do not affect the global version."
+      ? copy.folder.personalCopyNote
     : null;
 
 
@@ -148,15 +152,23 @@ export default function Folder() {
     );
   }
 
+  if (folderError || wordsError) {
+    return (
+      <div className="flex items-center justify-center min-h-[200px] text-destructive">
+        Failed to load. Please refresh and try again.
+      </div>
+    );
+  }
+
   if (!folder) {
     return (
       <div className="min-h-screen w-full app-bg scholar-title flex flex-col items-center justify-center">
-        <p className="scholar-muted mb-4">Folder not found</p>
+        <p className="scholar-muted mb-4">{copy.folder.folderNotFound}</p>
         <Button
           onClick={() => setLocation("/")}
           className="bg-[var(--accent)] hover:bg-[var(--accent-strong)] scholar-title rounded-full"
         >
-          Go Back
+          {copy.common.back}
         </Button>
       </div>
     );
@@ -181,7 +193,7 @@ export default function Folder() {
                   variant="outline"
                   className="border-[#F59E0B]/40 bg-[#F59E0B]/10 text-[#F59E0B] rounded-full"
                 >
-                  Read only
+                  {copy.folder.readOnly}
                 </Badge>
               ) : null}
               {isSavedGlobalFolder && !isBookManagedFolder ? (
@@ -189,7 +201,7 @@ export default function Folder() {
                   variant="outline"
                   className="border-[var(--accent)]/40 bg-[var(--accent)]/10 text-[var(--accent)] rounded-full"
                 >
-                  Personal copy
+                  {copy.folder.personalCopy}
                 </Badge>
               ) : null}
             </div>
@@ -202,7 +214,7 @@ export default function Folder() {
       <div className="mx-auto w-full max-w-6xl px-6 py-5">
         <div className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-6 py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <span className="scholar-muted">{words.length} words</span>
+            <span className="scholar-muted">{words.length} {copy.common.words}</span>
             {editingHelpText ? (
               <p className="text-xs scholar-muted mt-1">{editingHelpText}</p>
             ) : null}
@@ -214,14 +226,14 @@ export default function Folder() {
               className="border-[var(--surface-border)] scholar-title hover:bg-[var(--accent-muted)] rounded-full text-sm"
             >
               <RotateCcw className="w-4 h-4 mr-2" />
-              Review
+              {copy.review.title}
             </Button>
             <Button
               onClick={() => setLocation(`/memorize/${folderId}`)}
               className="bg-[color-mix(in_srgb,_var(--accent)_55%,_#10B981)] hover:bg-[color-mix(in_srgb,_var(--accent-strong)_45%,_#0b7a57)] scholar-title rounded-full text-sm"
             >
               <Play className="w-4 h-4 mr-2" />
-              Memorize
+              {copy.memorize.title}
             </Button>
             <Button
               onClick={() => setShowDeleteDialog(true)}
@@ -245,7 +257,7 @@ export default function Folder() {
           <Input
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search words..."
+            placeholder={copy.common.searchWords}
             className="bg-[var(--surface)] border-[var(--surface-border)] scholar-title placeholder:text-[var(--text-secondary)]"
           />
           <div className="flex gap-2">
@@ -256,7 +268,7 @@ export default function Folder() {
                 ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/10"
                 : "border-[var(--surface-border)] scholar-title hover:bg-[var(--accent-muted)]"}
             >
-              A - Z
+              {copy.globalFolder.sortAZ}
             </Button>
             <Button
               onClick={() => setSort("za")}
@@ -265,7 +277,7 @@ export default function Folder() {
                 ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/10"
                 : "border-[var(--surface-border)] scholar-title hover:bg-[var(--accent-muted)]"}
             >
-              Z - A
+              {copy.globalFolder.sortZA}
             </Button>
           </div>
         </div>
@@ -278,14 +290,14 @@ export default function Folder() {
           </div>
         ) : filteredWords.length === 0 ? (
           <div className="text-center py-12 rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)]">
-            <p className="scholar-muted mb-4">No words found.</p>
+            <p className="scholar-muted mb-4">{copy.globalFolder.noWords}</p>
             {!isBookManagedFolder ? (
               <Button
                 onClick={() => setShowAddWordDialog(true)}
                 className="bg-[var(--accent)] hover:bg-[var(--accent-strong)] scholar-title rounded-full"
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Add Word
+                {copy.folder.addWord}
               </Button>
             ) : null}
           </div>
@@ -327,7 +339,7 @@ export default function Folder() {
                       className="border-[var(--surface-border)] scholar-title hover:bg-[var(--accent-muted)] rounded-full text-xs px-3 py-1 ml-3"
                     >
                       <Pencil className="w-3.5 h-3.5 mr-1" />
-                      Edit
+                      {copy.folder.editWord}
                     </Button>
                   ) : null}
                 </div>
@@ -347,14 +359,14 @@ export default function Folder() {
                 className="w-full bg-[var(--accent)] hover:bg-[var(--accent-strong)] scholar-title rounded-full"
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Add Word
+                {copy.folder.addWord}
               </Button>
               <Button
                 onClick={() => setShowBulkImportDialog(true)}
                 className="w-full bg-[#8B5CF6] hover:bg-[#7c3aed] scholar-title rounded-full"
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Bulk Import
+                {copy.folder.bulkImport}
               </Button>
             </>
           ) : null}
@@ -365,31 +377,31 @@ export default function Folder() {
       <Dialog open={showAddWordDialog && !isBookManagedFolder} onOpenChange={setShowAddWordDialog}>
         <DialogContent className="scholar-surface-elevated border-[var(--surface-border)] scholar-title">
           <DialogHeader>
-            <DialogTitle>Add New Word</DialogTitle>
+            <DialogTitle>{copy.folder.addNewWord}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm scholar-muted mb-2 block">English Word</label>
+              <label className="text-sm scholar-muted mb-2 block">{copy.folder.englishWord}</label>
               <Input
-                placeholder="e.g., beautiful"
+                placeholder={copy.folder.englishPlaceholder}
                 value={newWord.english}
                 onChange={(e) => setNewWord({ ...newWord, english: e.target.value })}
                 className="bg-[var(--surface)] border-[var(--surface-border)] scholar-title placeholder:text-[var(--text-secondary)]"
               />
             </div>
             <div>
-              <label className="text-sm scholar-muted mb-2 block">Uzbek Translation</label>
+              <label className="text-sm scholar-muted mb-2 block">{copy.folder.uzbekTranslation}</label>
               <Input
-                placeholder="e.g., go'zal"
+                placeholder={copy.folder.uzbekPlaceholder}
                 value={newWord.uzbek}
                 onChange={(e) => setNewWord({ ...newWord, uzbek: e.target.value })}
                 className="bg-[var(--surface)] border-[var(--surface-border)] scholar-title placeholder:text-[var(--text-secondary)]"
               />
             </div>
             <div>
-              <label className="text-sm scholar-muted mb-2 block">Description (Optional)</label>
+              <label className="text-sm scholar-muted mb-2 block">{copy.folder.descriptionOptional}</label>
               <Textarea
-                placeholder="e.g., Used to describe something pleasant to look at."
+                placeholder={copy.folder.descriptionPlaceholder}
                 value={newWord.description}
                 onChange={(e) => setNewWord({ ...newWord, description: e.target.value })}
                 className="bg-[var(--surface)] border-[var(--surface-border)] scholar-title placeholder:text-[var(--text-secondary)] resize-none"
@@ -397,9 +409,9 @@ export default function Folder() {
               />
             </div>
             <div>
-              <label className="text-sm scholar-muted mb-2 block">Example (Optional)</label>
+              <label className="text-sm scholar-muted mb-2 block">{copy.folder.exampleOptional}</label>
               <Textarea
-                placeholder="e.g., She has a beautiful smile."
+                placeholder={copy.folder.examplePlaceholder}
                 value={newWord.example}
                 onChange={(e) => setNewWord({ ...newWord, example: e.target.value })}
                 className="bg-[var(--surface)] border-[var(--surface-border)] scholar-title placeholder:text-[var(--text-secondary)] resize-none"
@@ -424,7 +436,7 @@ export default function Folder() {
               {addWordMutation.isPending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                "Add Word"
+                copy.folder.addWord
               )}
             </Button>
           </div>
@@ -435,31 +447,31 @@ export default function Folder() {
       <Dialog open={showEditWordDialog && !isBookManagedFolder} onOpenChange={setShowEditWordDialog}>
         <DialogContent className="scholar-surface-elevated border-[var(--surface-border)] scholar-title">
           <DialogHeader>
-            <DialogTitle>Edit Word</DialogTitle>
+            <DialogTitle>{copy.folder.editWord}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm scholar-muted mb-2 block">English Word</label>
+              <label className="text-sm scholar-muted mb-2 block">{copy.folder.englishWord}</label>
               <Input
-                placeholder="e.g., beautiful"
+                placeholder={copy.folder.englishPlaceholder}
                 value={newWord.english}
                 onChange={(e) => setNewWord({ ...newWord, english: e.target.value })}
                 className="bg-[var(--surface)] border-[var(--surface-border)] scholar-title placeholder:text-[var(--text-secondary)]"
               />
             </div>
             <div>
-              <label className="text-sm scholar-muted mb-2 block">Uzbek Translation</label>
+              <label className="text-sm scholar-muted mb-2 block">{copy.folder.uzbekTranslation}</label>
               <Input
-                placeholder="e.g., go'zal"
+                placeholder={copy.folder.uzbekPlaceholder}
                 value={newWord.uzbek}
                 onChange={(e) => setNewWord({ ...newWord, uzbek: e.target.value })}
                 className="bg-[var(--surface)] border-[var(--surface-border)] scholar-title placeholder:text-[var(--text-secondary)]"
               />
             </div>
             <div>
-              <label className="text-sm scholar-muted mb-2 block">Description (Optional)</label>
+              <label className="text-sm scholar-muted mb-2 block">{copy.folder.descriptionOptional}</label>
               <Textarea
-                placeholder="e.g., Used to describe something pleasant to look at."
+                placeholder={copy.folder.descriptionPlaceholder}
                 value={newWord.description}
                 onChange={(e) => setNewWord({ ...newWord, description: e.target.value })}
                 className="bg-[var(--surface)] border-[var(--surface-border)] scholar-title placeholder:text-[var(--text-secondary)] resize-none"
@@ -467,9 +479,9 @@ export default function Folder() {
               />
             </div>
             <div>
-              <label className="text-sm scholar-muted mb-2 block">Example (Optional)</label>
+              <label className="text-sm scholar-muted mb-2 block">{copy.folder.exampleOptional}</label>
               <Textarea
-                placeholder="e.g., She has a beautiful smile."
+                placeholder={copy.folder.examplePlaceholder}
                 value={newWord.example}
                 onChange={(e) => setNewWord({ ...newWord, example: e.target.value })}
                 className="bg-[var(--surface)] border-[var(--surface-border)] scholar-title placeholder:text-[var(--text-secondary)] resize-none"
@@ -494,7 +506,7 @@ export default function Folder() {
               {updateWordMutation.isPending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                "Save Changes"
+                copy.folder.saveChanges
               )}
             </Button>
           </div>
@@ -505,22 +517,22 @@ export default function Folder() {
       <Dialog open={showBulkImportDialog && !isBookManagedFolder} onOpenChange={setShowBulkImportDialog}>
         <DialogContent className="scholar-surface-elevated border-[var(--surface-border)] scholar-title max-w-md">
           <DialogHeader>
-            <DialogTitle>Bulk Import Words</DialogTitle>
+            <DialogTitle>{copy.folder.bulkImportTitle}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
               <label className="text-sm scholar-muted mb-2 block">
-                Enter words (one per line, format: English | Uzbek | Description | Example)
+                {copy.folder.bulkImportLabel}
               </label>
               <Textarea
-                placeholder="beautiful | go'zal | pleasant to look at | She has a beautiful smile."
+                placeholder={copy.folder.bulkImportPlaceholder}
                 value={bulkImportText}
                 onChange={(e) => setBulkImportText(e.target.value)}
                 className="bg-[var(--surface)] border-[var(--surface-border)] scholar-title placeholder:text-[var(--text-secondary)] resize-none"
                 rows={8}
               />
               <p className="text-xs scholar-muted mt-2">
-                Separate values with | (pipe). Description and Example are optional.
+                {copy.folder.bulkImportHint}
               </p>
             </div>
             <Button
@@ -537,7 +549,7 @@ export default function Folder() {
                 }).filter(w => w.english && w.uzbek);
 
                 if (words.length === 0) {
-                  toast.error("Please enter at least one word");
+                  toast.error(copy.folder.enterAtLeastOneWord);
                   return;
                 }
 
@@ -552,7 +564,7 @@ export default function Folder() {
               {importWordsMutation.isPending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                "Import Words"
+                copy.folder.importWords
               )}
             </Button>
           </div>

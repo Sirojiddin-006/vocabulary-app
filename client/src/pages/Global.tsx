@@ -59,7 +59,7 @@ export default function Global() {
         utils.auth.getTotalStats.invalidate(),
       ]);
     },
-    onError: error => toast.error(error.message || "Failed to update saved folder"),
+    onError: error => toast.error(error.message || copy.global.failedSavedFolder),
   });
 
   const toggleSaveGlobalBookMutation = trpc.vocabulary.toggleSaveGlobalBook.useMutation({
@@ -70,7 +70,7 @@ export default function Global() {
         utils.auth.getTotalStats.invalidate(),
       ]);
     },
-    onError: error => toast.error(error.message || "Failed to update saved book"),
+    onError: error => toast.error(error.message || copy.global.failedSavedBook),
   });
 
   const visibleFolders = folders.filter(entry => entry.wordCount > 0);
@@ -170,7 +170,7 @@ export default function Global() {
           {bookEntries.length === 0 ? (
             <div className="scholar-surface p-8 text-center scholar-muted">{copy.global.noBooks}</div>
           ) : (
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {bookEntries.map(({ book, units, unitCount, wordCount }) => {
                 const isSaved = units.length > 0 && units.every(unit => savedFolderIdSet.has(unit.folder.id));
                 return (
@@ -185,7 +185,7 @@ export default function Global() {
                     savePending={toggleSaveGlobalBookMutation.isPending}
                     onSave={() => toggleSaveGlobalBookMutation.mutate({ bookId: book.id })}
                     onOpen={() => setLocation(`/global/book/${book.id}/units`)}
-                    actionLabel={`${copy.global.open} ->`}
+                    actionLabel={copy.common.open}
                   />
                 );
               })}
@@ -198,8 +198,8 @@ export default function Global() {
             <h2 className="font-display text-2xl font-semibold scholar-title">{copy.global.folders}</h2>
             <div className="scholar-surface-elevated inline-flex items-center p-1">
               <SortButton active={sort === "most"} onClick={() => setSort("most")}>{copy.global.mostWords}</SortButton>
-              <SortButton active={sort === "az"} onClick={() => setSort("az")}>A-Z</SortButton>
-              <SortButton active={sort === "za"} onClick={() => setSort("za")}>Z-A</SortButton>
+              <SortButton active={sort === "az"} onClick={() => setSort("az")}>{copy.global.sortAZ}</SortButton>
+              <SortButton active={sort === "za"} onClick={() => setSort("za")}>{copy.global.sortZA}</SortButton>
             </div>
           </div>
 
@@ -217,7 +217,7 @@ export default function Global() {
           ) : sortedFolders.length === 0 ? (
             <div className="scholar-surface p-8 text-center scholar-muted">{copy.global.noFolders}</div>
           ) : (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {sortedFolders.map(({ folder, wordCount }) => (
                 <FolderCard
                   key={folder.id}

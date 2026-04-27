@@ -22,7 +22,7 @@ export default function BookUnitsPage() {
   const { data: books = [], isLoading: booksLoading } = trpc.vocabulary.getGlobalBooks.useQuery(undefined, {
     enabled: isAuthenticated && bookId > 0,
   });
-  const { data: personalFolders = [], isLoading: personalUnitsLoading } = trpc.vocabulary.getFolders.useQuery(undefined, {
+  const { data: personalFolders = [], isLoading: personalUnitsLoading } = trpc.vocabulary.getFoldersWithCounts.useQuery(undefined, {
     enabled: isAuthenticated && bookId > 0 && !isGlobal,
   });
   const { data: globalFolders = [], isLoading: globalUnitsLoading } = trpc.vocabulary.getGlobalFoldersWithCounts.useQuery(undefined, {
@@ -37,7 +37,7 @@ export default function BookUnitsPage() {
         .sort((a, b) => (a.folder.unitNumber ?? 0) - (b.folder.unitNumber ?? 0))
         .map(entry => ({
           id: entry.folder.id,
-          name: entry.folder.name || `Unit ${entry.folder.unitNumber ?? "-"}`,
+          name: entry.folder.name || `${copy.bookUnits.unitLabel} ${entry.folder.unitNumber ?? "-"}`,
           unitNumber: entry.folder.unitNumber ?? null,
           wordCount: entry.wordCount,
           to: `/global/folder/${entry.folder.id}`,
@@ -45,14 +45,14 @@ export default function BookUnitsPage() {
     }
 
     return personalFolders
-      .filter(folder => folder.bookId === bookId)
-      .sort((a, b) => (a.unitNumber ?? 0) - (b.unitNumber ?? 0))
-      .map(folder => ({
-        id: folder.id,
-        name: folder.name || `Unit ${folder.unitNumber ?? "-"}`,
-        unitNumber: folder.unitNumber ?? null,
-        wordCount: 0,
-        to: `/folder/${folder.id}`,
+      .filter(entry => entry.folder.bookId === bookId)
+      .sort((a, b) => (a.folder.unitNumber ?? 0) - (b.folder.unitNumber ?? 0))
+      .map(entry => ({
+        id: entry.folder.id,
+        name: entry.folder.name || `${copy.bookUnits.unitLabel} ${entry.folder.unitNumber ?? "-"}`,
+        unitNumber: entry.folder.unitNumber ?? null,
+        wordCount: entry.wordCount,
+        to: `/folder/${entry.folder.id}`,
       }));
   }, [isGlobal, globalFolders, personalFolders, bookId]);
 
@@ -61,11 +61,11 @@ export default function BookUnitsPage() {
 
   if (!bookId || Number.isNaN(bookId)) {
     return (
-      <MobileAppShell title="Book units" subtitle="Invalid book">
+      <MobileAppShell title={copy.bookUnits.title} subtitle={copy.bookUnits.invalidBook}>
         <div className="scholar-surface p-8 text-center">
-          <p className="scholar-muted">Invalid book id.</p>
+          <p className="scholar-muted">{copy.bookUnits.invalidBookId}</p>
           <Button className="mt-4" onClick={() => setLocation(backTo)}>
-            Go back
+            {copy.common.back}
           </Button>
         </div>
       </MobileAppShell>
@@ -74,8 +74,8 @@ export default function BookUnitsPage() {
 
   return (
     <MobileAppShell
-      title={book?.title || "Book units"}
-      subtitle={book ? `${units.length} units` : "Loading book"}
+      title={book?.title || copy.bookUnits.title}
+      subtitle={book ? `${units.length} ${copy.common.units}` : copy.bookUnits.loadingBook}
       leftSlot={
         <button
           type="button"
@@ -97,13 +97,13 @@ export default function BookUnitsPage() {
               <h2 className="font-display text-2xl font-semibold scholar-title">
                 {book?.title || copy.global.books}
               </h2>
-              <p className="text-sm scholar-muted">{units.length} units</p>
+            <p className="text-sm scholar-muted">{units.length} {copy.common.units}</p>
             </div>
           </div>
         </div>
 
         {isLoading ? (
-          <div className="grid gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {Array.from({ length: 4 }).map((_, idx) => (
               <div key={idx} className="scholar-surface p-4">
                 <Skeleton className="h-5 w-40" />
@@ -114,14 +114,14 @@ export default function BookUnitsPage() {
           </div>
         ) : !book ? (
           <div className="scholar-surface p-8 text-center">
-            <p className="scholar-muted">Book not found.</p>
+            <p className="scholar-muted">{copy.bookUnits.bookNotFound}</p>
           </div>
         ) : units.length === 0 ? (
           <div className="scholar-surface p-8 text-center">
-            <p className="scholar-muted">No units found for this book.</p>
+            <p className="scholar-muted">{copy.bookUnits.noUnits}</p>
           </div>
         ) : (
-          <div className="grid gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {units.map(unit => (
               <Card key={unit.id} className="scholar-surface p-4 hover-lift">
                 <div className="flex items-center justify-between gap-3">
@@ -133,15 +133,15 @@ export default function BookUnitsPage() {
                       </h3>
                     </div>
                     <p className="mt-1 text-sm scholar-muted">
-                      Unit {unit.unitNumber ?? "-"}
-                      {unit.wordCount > 0 ? ` • ${unit.wordCount} words` : ""}
+                      {copy.bookUnits.unitLabel} {unit.unitNumber ?? "-"}
+                      {unit.wordCount > 0 ? ` • ${unit.wordCount} ${copy.common.words}` : ""}
                     </p>
                   </div>
                   <Button
                     onClick={() => setLocation(unit.to)}
                     className="h-9 rounded-[var(--radius-button)] bg-[var(--accent)] px-4 text-black hover:bg-[var(--accent-strong)] hover:text-white"
                   >
-                    Open
+                    {copy.common.open}
                   </Button>
                 </div>
               </Card>

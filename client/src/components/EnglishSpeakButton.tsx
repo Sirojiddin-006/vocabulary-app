@@ -161,7 +161,7 @@ export function EnglishSpeakButton({
 
             await audio.play();
           } catch (error) {
-            console.error("TTS error:", error);
+            if (import.meta.env.DEV) console.error("TTS error:", error);
             setActiveButtonId(null);
             speakFallback(nextText);
           } finally {
