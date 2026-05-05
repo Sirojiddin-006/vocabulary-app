@@ -9,8 +9,8 @@ CREATE TABLE IF NOT EXISTS `books` (
   CONSTRAINT `books_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
-ALTER TABLE `folders` ADD COLUMN IF NOT EXISTS `bookId` int;
+ALTER TABLE `folders` ADD COLUMN `bookId` int;
 --> statement-breakpoint
-ALTER TABLE `folders` ADD COLUMN IF NOT EXISTS `unitNumber` int;
+ALTER TABLE `folders` ADD COLUMN `unitNumber` int;
 --> statement-breakpoint
-ALTER TABLE `words` ADD COLUMN IF NOT EXISTS `description` text;
+ALTER TABLE `words` ADD COLUMN `description` text;
