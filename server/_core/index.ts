@@ -53,13 +53,22 @@ function getLocalNetworkUrls(host: string, port: number) {
   return Array.from(urls);
 }
 
-function isAllowedCorsOrigin(origin: string, allowedOrigins: string[]) {
+function isAllowedCorsOrigin(
+  origin: string,
+  allowedOrigins: string[],
+  requestOrigin?: string
+) {
   if (allowedOrigins.includes(origin)) {
     return true;
   }
 
   if (process.env.NODE_ENV === "production") {
-    return false;
+    try {
+      const { host, protocol } = new URL(origin);
+      return requestOrigin === `${protocol}//${host}`;
+    } catch {
+      return false;
+    }
   }
 
   try {
@@ -143,16 +152,33 @@ async function startServer() {
     : ["http://localhost:3000", "http://localhost:5173"];
 
   app.use(
-    cors({
-      origin: (origin, callback) => {
-        if (!origin || isAllowedCorsOrigin(origin, allowedOrigins)) {
-          callback(null, true);
+    cors((req, callback) => ({
+      origin: (
+        origin: string | undefined,
+        originCallback: (err: Error | null, allow?: boolean) => void
+      ) => {
+        const requestHost =
+          req.headers["x-forwarded-host"]?.toString() ?? req.headers.host;
+        const requestProtocol =
+          req.headers["x-forwarded-proto"]?.toString() ??
+          process.env.FORWARDED_PROTO ??
+          "https";
+
+        if (
+          !origin ||
+          isAllowedCorsOrigin(
+            origin,
+            allowedOrigins,
+            requestHost ? `${requestProtocol}://${requestHost}` : undefined
+          )
+        ) {
+          originCallback(null, true);
         } else {
-          callback(new Error(`CORS: origin ${origin} not allowed`));
+          originCallback(new Error(`CORS: origin ${origin} not allowed`));
         }
       },
       credentials: true,
-    })
+    }))
   );
 
   // Configure body parser with larger size limit for file uploads
@@ -221,7 +247,9 @@ async function startServer() {
 
   const preferredPort = parseInt(process.env.PORT || "3000");
   const host = process.env.HOST || "0.0.0.0";
-  const port = await findAvailablePort(preferredPort);
+  const port = ENV.isProduction
+    ? preferredPort
+    : await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
