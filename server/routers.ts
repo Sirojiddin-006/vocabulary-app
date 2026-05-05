@@ -1,15 +1,134 @@
-import { COOKIE_NAME } from "@shared/const";
+import { COOKIE_NAME, SEVEN_DAYS_MS } from "@shared/const";
+import { TRPCError } from "@trpc/server";
 import { getSessionCookieOptions } from "./_core/cookies";
+import { createSessionToken, hashPassword, verifyPassword } from "./_core/auth";
+import { logger } from "./_core/logger";
 import { systemRouter } from "./_core/systemRouter";
+import { transcribeAudioBuffer } from "./_core/voiceTranscription";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
+
+const toSafeUser = (
+  user: Awaited<ReturnType<typeof db.getUserById>> | null | undefined
+) => {
+  if (!user) return null;
+  const { passwordHash, passwordSalt, ...safe } = user;
+  return safe;
+};
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
+    signUp: publicProcedure
+      .input(
+        z.object({
+          username: z.string().min(3).max(64),
+          password: z.string().min(6).max(128),
+          name: z.string().min(1).max(255).optional(),
+          email: z.string().email().max(320).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const existing = await db.getUserByUsername(input.username);
+        if (existing) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Username already exists",
+          });
+        }
+
+        const { hash, salt } = hashPassword(input.password);
+        const user = await db.createLocalUser({
+          username: input.username,
+          name: input.name ?? null,
+          email: input.email ?? null,
+          passwordHash: hash,
+          passwordSalt: salt,
+        });
+
+        if (!user) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Failed to create user",
+          });
+        }
+
+        const token = await createSessionToken({
+          userId: user.id,
+          username: user.username ?? user.openId ?? "",
+        });
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, token, {
+          ...cookieOptions,
+          maxAge: SEVEN_DAYS_MS,
+        });
+
+        logger.info("auth.login_succeeded", {
+          userId: user.id,
+          loginMethod: user.loginMethod ?? "local",
+        });
+
+        return { user: toSafeUser(user) };
+      }),
+    signIn: publicProcedure
+      .input(
+        z.object({
+          username: z.string().min(3).max(64),
+          password: z.string().min(6).max(128),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const user = await db.getUserByUsername(input.username);
+        if (!user || !user.passwordHash || !user.passwordSalt) {
+          logger.warn("auth.login_failed", {
+            username: input.username,
+            reason: "user_not_found_or_no_local_password",
+          });
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Invalid username or password",
+          });
+        }
+
+        const valid = verifyPassword(
+          input.password,
+          user.passwordSalt,
+          user.passwordHash
+        );
+        if (!valid) {
+          logger.warn("auth.login_failed", {
+            username: input.username,
+            userId: user.id,
+            reason: "invalid_password",
+          });
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Invalid username or password",
+          });
+        }
+
+        await db.updateLastSignedIn(user.id);
+
+        const token = await createSessionToken({
+          userId: user.id,
+          username: user.username ?? user.openId ?? "",
+        });
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, token, {
+          ...cookieOptions,
+          maxAge: SEVEN_DAYS_MS,
+        });
+
+        logger.info("auth.login_succeeded", {
+          userId: user.id,
+          loginMethod: user.loginMethod ?? "local",
+        });
+
+        return { user: toSafeUser(user) };
+      }),
+    me: publicProcedure.query(opts => toSafeUser(opts.ctx.user)),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
@@ -22,9 +141,10 @@ export const appRouter = router({
         name: z.string().min(1).max(255).optional(),
         email: z.string().email().max(320).optional(),
       }))
-      .mutation(({ ctx, input }) =>
-        db.updateUser(ctx.user.id, input)
-      ),
+      .mutation(async ({ ctx, input }) => {
+        const user = await db.updateUser(ctx.user.id, input);
+        return toSafeUser(user);
+      }),
     deleteAccount: protectedProcedure
       .mutation(({ ctx }) =>
         db.deleteUser(ctx.user.id)
@@ -33,6 +153,10 @@ export const appRouter = router({
       .query(({ ctx }) =>
         db.getUserTotalStats(ctx.user.id)
       ),
+    getGlobalStats: protectedProcedure
+      .query(({ ctx }) =>
+        db.getGlobalTotalStats(ctx.user.id)
+      ),
   }),
 
   vocabulary: router({
@@ -40,12 +164,46 @@ export const appRouter = router({
     getFolders: protectedProcedure.query(({ ctx }) =>
       db.getFolders(ctx.user.id)
     ),
+    getFoldersWithCounts: protectedProcedure.query(({ ctx }) =>
+      db.getFoldersWithWordCounts(ctx.user.id)
+    ),
+    // Global section: all folders across users
+    getGlobalFolders: protectedProcedure.query(() =>
+      db.getAllFolders()
+    ),
+    // Global section with word counts for display
+    getGlobalFoldersWithCounts: protectedProcedure.query(() =>
+      db.getAllFoldersWithWordCounts()
+    ),
+    getSavedGlobalFolderIds: protectedProcedure.query(({ ctx }) =>
+      db.getSavedGlobalFolderIds(ctx.user.id)
+    ),
+    searchGlobalFolders: protectedProcedure
+      .input(z.object({ query: z.string().min(1).max(100) }))
+      .query(({ input }) =>
+        db.searchGlobalFolderIds(input.query)
+      ),
+    searchGlobalWords: protectedProcedure
+      .input(z.object({ query: z.string().min(1).max(100) }))
+      .query(({ input }) =>
+        db.searchGlobalWords(input.query)
+      ),
+    // Global books
+    getGlobalBooks: protectedProcedure.query(() =>
+      db.getGlobalBooks()
+    ),
 
     // Get a specific folder by ID
     getFolderById: protectedProcedure
       .input(z.object({ folderId: z.number() }))
       .query(({ ctx, input }) =>
         db.getFolderById(input.folderId, ctx.user.id)
+      ),
+    // Global section: get folder by ID (no ownership filter)
+    getGlobalFolderById: protectedProcedure
+      .input(z.object({ folderId: z.number() }))
+      .query(({ input }) =>
+        db.getGlobalFolderById(input.folderId)
       ),
 
     // Create a new folder
@@ -58,11 +216,33 @@ export const appRouter = router({
         db.createFolder(input.name, input.description || null, ctx.user.id)
       ),
 
+    deleteFolder: protectedProcedure
+      .input(z.object({ folderId: z.number() }))
+      .mutation(({ ctx, input }) =>
+        db.deletePersonalFolder(input.folderId, ctx.user.id)
+      ),
+
     // Get words in a folder
     getWords: protectedProcedure
       .input(z.object({ folderId: z.number() }))
       .query(({ ctx, input }) =>
         db.getWordsByFolderId(input.folderId, ctx.user.id)
+      ),
+    // Global section: get words for any folder
+    getGlobalWords: protectedProcedure
+      .input(z.object({ folderId: z.number() }))
+      .query(({ input }) =>
+        db.getGlobalWordsByFolderId(input.folderId)
+      ),
+    toggleSaveGlobalFolder: protectedProcedure
+      .input(z.object({ folderId: z.number() }))
+      .mutation(({ ctx, input }) =>
+        db.toggleSaveGlobalFolder(input.folderId, ctx.user.id)
+      ),
+    toggleSaveGlobalBook: protectedProcedure
+      .input(z.object({ bookId: z.number() }))
+      .mutation(({ ctx, input }) =>
+        db.toggleSaveGlobalBook(input.bookId, ctx.user.id)
       ),
 
     // Add a new word to a folder
@@ -71,6 +251,7 @@ export const appRouter = router({
         folderId: z.number(),
         english: z.string().min(1).max(255),
         uzbek: z.string().min(1).max(255),
+        description: z.string().max(1000).nullable().optional(),
         example: z.string().max(500).nullable().optional(),
       }))
       .mutation(({ ctx, input }) =>
@@ -78,6 +259,26 @@ export const appRouter = router({
           input.folderId,
           input.english,
           input.uzbek,
+          input.description || null,
+          input.example || null,
+          ctx.user.id
+        )
+      ),
+
+    updateWord: protectedProcedure
+      .input(z.object({
+        wordId: z.number(),
+        english: z.string().min(1).max(255),
+        uzbek: z.string().min(1).max(255),
+        description: z.string().max(1000).nullable().optional(),
+        example: z.string().max(500).nullable().optional(),
+      }))
+      .mutation(({ ctx, input }) =>
+        db.updateWord(
+          input.wordId,
+          input.english,
+          input.uzbek,
+          input.description || null,
           input.example || null,
           ctx.user.id
         )
@@ -90,6 +291,7 @@ export const appRouter = router({
         words: z.array(z.object({
           english: z.string().min(1).max(255),
           uzbek: z.string().min(1).max(255),
+          description: z.string().max(1000).optional(),
           example: z.string().max(500).optional(),
         })).min(1).max(100),
       }))
@@ -113,6 +315,60 @@ export const appRouter = router({
       .mutation(({ ctx, input }) =>
         db.updateUserProgress(ctx.user.id, input.wordId, input.known)
       ),
+    setKnownStatus: protectedProcedure
+      .input(z.object({
+        wordId: z.number(),
+        known: z.boolean(),
+      }))
+      .mutation(({ ctx, input }) =>
+        db.setWordKnownStatus(ctx.user.id, input.wordId, input.known)
+      ),
+    recordStudySession: protectedProcedure
+      .input(z.object({
+        folderId: z.number(),
+        knownCount: z.number().int().min(0),
+        unknownCount: z.number().int().min(0),
+        scope: z.enum(["personal", "global"]),
+        mode: z.enum(["memorize", "review"]),
+      }))
+      .mutation(({ ctx, input }) => {
+        logger.info("study.session_completed", {
+          userId: ctx.user.id,
+          folderId: input.folderId,
+          knownCount: input.knownCount,
+          unknownCount: input.unknownCount,
+          scope: input.scope,
+          mode: input.mode,
+        });
+        return { success: true } as const;
+      }),
+  }),
+  voice: router({
+    transcribeBlob: protectedProcedure
+      .input(z.object({
+        audioBase64: z.string().min(1),
+        mimeType: z.string().min(1).max(100).optional(),
+        language: z.string().min(2).max(10).optional(),
+        prompt: z.string().max(400).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const result = await transcribeAudioBuffer({
+          audioBuffer: Buffer.from(input.audioBase64, "base64"),
+          mimeType: input.mimeType,
+          language: input.language,
+          prompt: input.prompt,
+        });
+
+        if ("error" in result) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: result.error,
+            cause: result,
+          });
+        }
+
+        return result;
+      }),
   }),
 });
 

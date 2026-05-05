@@ -1,56 +1,111 @@
-# Vocabulary Learning Website - TODO
+# Vocabulary App TODO
 
-## Core Features
-- [x] Fix card ordering bug in Memorize section (add to end instead of beginning)
-- [x] Implement user authentication with signup/signin
-- [x] Add OAuth support (Manus OAuth)
-- [x] Implement role-based access control (admin vs regular users)
-- [x] Admin-created words visible to all users
-- [x] User-specific words/folders visible only to creator
-- [x] Build user profile section
-- [x] User progress tracking and statistics
+## Done
+- [x] Local auth with `signUp` / `signIn`
+- [x] JWT cookie session flow
+- [x] Personal vs Global content separation
+- [x] MySQL + Drizzle ORM migration flow
+- [x] Word model supports:
+  - [x] english
+  - [x] uzbek
+  - [x] description
+  - [x] example
+- [x] Personal folder CRUD
+- [x] Global library pages
+- [x] Global books + unit support
+- [x] Essential Words 4000 seed
+- [x] Mobile liquid-glass shell
+- [x] Theme switching
+- [x] Locale state (`EN` / `UZ`)
+- [x] Global sorting includes `Z-A`
+- [x] Study flow split into:
+  - [x] `Review`
+  - [x] `Memorize`
+- [x] `True/False` removed
+- [x] `Memorize` reduced to:
+  - [x] `Test`
+  - [x] `Type`
+- [x] `Mixed` direction added
+- [x] Review does not mark words as learned
+- [x] Navbar-based study settings
+- [x] Classic review swipe stack with real next-card preview
+- [x] TypeScript check passing
 
-## Frontend Implementation
-- [x] Migrate Figma design components to React
-- [x] Implement HomePage with folder selection
-- [x] Implement FolderPage with word list
-- [x] Implement MemorizePage with flashcard functionality
-- [x] Implement AddWordModal with folder creation
-- [x] Implement authentication (Login/Logout)
-- [x] Implement user profile page
-- [x] Implement responsive design for mobile
+## High Priority
+- [ ] Localize remaining UI copy across all pages and dialogs
+- [ ] Unify `Review` and `Memorize` shared study UI into reusable components
+- [ ] Add explicit UX labels in folder pages to explain:
+  - [ ] `Review` does not save learned progress
+  - [ ] `Memorize` does save learned progress
+- [ ] Add empty / completion states that better distinguish:
+  - [ ] finished review session
+  - [ ] finished memorize session
+- [ ] Audit mobile spacing and typography across all pages after shell redesign
 
-## Backend Implementation
-- [x] Create database schema with users, folders, words tables
-- [x] Implement user authentication endpoints
-- [x] Implement OAuth integration (Manus OAuth)
-- [x] Implement folder management endpoints
-- [x] Implement word management endpoints
-- [x] Implement role-based access control
-- [x] Implement user progress tracking endpoints
-- [x] Add input validation and error handling
+## Study System
+- [ ] Persist separate analytics for `Review` sessions
+- [ ] Add per-direction stats:
+  - [ ] `ENG -> UZB`
+  - [ ] `UZB -> ENG`
+  - [ ] `Mixed`
+- [ ] Decide whether `Mixed` should remain deterministic per-card or become strict alternating order
+- [ ] Add optional session-size limit for long folders
+- [ ] Add optional retry-only-wrong-answers mode after memorize completion
+- [ ] Improve `Type` mode answer normalization:
+  - [ ] punctuation tolerance
+  - [ ] whitespace tolerance
+  - [ ] optional synonym support
 
-## Database Schema
-- [x] Users table with role field (admin/user)
-- [x] Folders table with owner_id and is_global flag
-- [x] Words table with folder_id and owner_id
-- [x] User progress table for tracking known words
-- [x] Migrations for all tables
+## Global Library
+- [ ] Add book filtering on Global page
+- [ ] Add unit-level progress indicators in Global books
+- [ ] Improve global search result ranking
+- [ ] Add clearer distinction between:
+  - [ ] standalone global folders
+  - [ ] book/unit folders
 
-## Testing & Deployment
-- [ ] Test authentication flow
-- [ ] Test role-based access control
-- [ ] Test card ordering in flashcard section
-- [ ] Test folder and word visibility rules
-- [ ] Test responsive design on mobile devices
-- [ ] Prepare GitHub repository
-- [ ] Create deployment documentation
-- [ ] Set up environment variables for self-hosting
+## Personal Dashboard
+- [ ] Add clearer session CTA cards:
+  - [ ] Start Review
+  - [ ] Start Memorize
+- [ ] Revisit home stats hierarchy after removing known/unknown cards
+- [ ] Add recent activity / last studied folder section
 
-## Design & UI
-- [x] Apply Figma design color scheme and typography
-- [x] Ensure dark theme consistency
-- [x] Implement smooth transitions and animations
-- [x] Add loading states for async operations
-- [x] Implement error handling UI
-- [x] Add empty states for lists
+## Profile
+- [ ] Localize profile dialogs and destructive action text
+- [ ] Improve profile refresh flow after update to avoid full page reload
+- [ ] Add clearer explanation of personal vs global stats
+
+## Technical Cleanup
+- [ ] Extract shared study helpers used by:
+  - [ ] `Review.tsx`
+  - [ ] `GlobalReview.tsx`
+  - [ ] `Memorize.tsx`
+  - [ ] `GlobalMemorize.tsx`
+- [ ] Reduce duplicated study page markup between personal/global versions
+- [ ] Add stronger route-level tests or smoke coverage for:
+  - [ ] review routes
+  - [ ] memorize routes
+  - [ ] global review routes
+  - [ ] global memorize routes
+- [ ] Add regression checks for folder visibility rules
+
+## Documentation
+- [x] Update `REPORT.md`
+- [x] Update `README.md`
+- [x] Update `API_REFERENCE.md`
+- [ ] Keep deployment docs aligned with local auth flow
+- [ ] Add short product decision note for:
+  - [ ] why `Review` and `Memorize` are separate
+  - [ ] how progress is intentionally written only in `Memorize`
+
+## QA
+- [ ] Test personal study flow end-to-end
+- [ ] Test global study flow end-to-end
+- [ ] Test `Mixed` direction behavior manually on mobile
+- [ ] Test liquid-glass shell on:
+  - [ ] small Android viewport
+  - [ ] iPhone viewport
+  - [ ] tablet viewport
+- [ ] Test light mode contrast across all main screens
+- [ ] Test profile/account destructive flows

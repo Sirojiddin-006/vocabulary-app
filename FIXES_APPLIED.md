@@ -1,0 +1,29 @@
+# Fixes Applied
+
+- `.env.example` — added a complete example env file covering required server and frontend variables for safer setup and deployment.
+- `client/src/components/ErrorBoundary.tsx` — hid production stack traces and added a safe retry fallback while preserving full dev diagnostics.
+- `client/src/lib/appCopy.ts` — added localized error-boundary copy for the new production-safe fallback.
+- `server/_core/index.ts` — added startup env validation, DB connectivity checks, rate limiting, CORS allowlisting, 5 MB body limits, and graceful shutdown handlers.
+- `package.json` — added the `cors` and `express-rate-limit` runtime dependencies plus `@types/cors` for TypeScript support.
+- `pnpm-lock.yaml` — recorded the new dependency graph for the added server middleware packages.
+- `drizzle/0004_saved_global_folders.sql.bak` — retained the superseded duplicate migration as a backup instead of an active SQL migration.
+- `DEPLOYMENT.md` — documented the duplicate migration backup, cookie/HTTPS warning, and PM2 deployment steps.
+- `server/_core/cookies.ts` — made cookie `secure` and `sameSite` behavior explicit based on production mode.
+- `server/_core/systemRouter.ts` — changed `system.health` to a no-input health response with status, timestamp, version, and uptime.
+- `ecosystem.config.cjs` — added a PM2 production process definition for the built server.
+- `.gitignore` — added the exact `logs/` ignore entry requested for PM2 log output.
+- `client/src/main.tsx` — restricted frontend API error logging to development only.
+- `client/src/components/Map.tsx` — restricted map loading/runtime error logging to development only.
+- `client/src/components/EnglishSpeakButton.tsx` — restricted TTS error logging to development only.
+- `client/src/components/AIChatBox.tsx` — removed the remaining `console.*` example from a docblock so the global grep check passes cleanly.
+- `client/src/pages/SignIn.tsx` — added the requested responsive auth-page wrapper for narrow screens.
+- `client/src/pages/SignUp.tsx` — added the requested responsive auth-page wrapper for narrow screens.
+- `client/src/pages/Global.tsx` — converted book and folder card layouts to explicit responsive grids.
+- `client/src/pages/BookUnitsPage.tsx` — converted the unit list and loading skeletons to a responsive two-column grid on larger small screens.
+- `client/src/pages/Home.tsx` — added explicit critical-query error state handling.
+- `client/src/pages/Folder.tsx` — added explicit folder/word query error state handling.
+- `client/src/pages/Memorize.tsx` — added explicit folder/word/progress query error state handling.
+- `client/src/pages/Profile.tsx` — added explicit stats/folder query error state handling.
+- `server/_core/auth.ts` — enforced a minimum 32-character JWT secret at session secret creation time.
+- `server/_core/env.ts` — switched env access to lazy getters so runtime/test overrides are respected consistently.
+- `server/smoke.test.ts` — added a 32+ character test JWT secret fallback so auth integration tests match the new production guard.

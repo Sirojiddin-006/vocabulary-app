@@ -1,0 +1,1 @@
+ALTER TABLE `userProgress` ADD CONSTRAINT `userProgress_userId_wordId_unique` UNIQUE(`userId`,`wordId`);

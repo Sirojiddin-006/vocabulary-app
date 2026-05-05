@@ -15,6 +15,55 @@
       "when": 1763295133602,
       "tag": "0001_large_victor_mancha",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1772194224077,
+      "tag": "0002_numerous_loa",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1772221000000,
+      "tag": "0003_essential_books",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1772421268657,
+      "tag": "0004_tense_catseye",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1772442000000,
+      "tag": "0005_global_query_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1777191950406,
+      "tag": "0006_tense_famine",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1777192525005,
+      "tag": "0007_military_centennial",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1777194527461,
+      "tag": "0008_chief_earthquake",
+      "breakpoints": true
     }
   ]
 }

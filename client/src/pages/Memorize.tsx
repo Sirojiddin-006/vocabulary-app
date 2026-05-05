@@ -1,8 +1,17 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { EnglishSpeakButton } from "@/components/EnglishSpeakButton";
 import { Button } from "@/components/ui/button";
-import { Loader2, ChevronLeft, Eye } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useAppLocale } from "@/contexts/AppLocaleContext";
+import { getCopy } from "@/lib/appCopy";
+import { ChevronLeft, Loader2, RotateCcw } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "wouter";
 
 type Word = {
@@ -10,270 +19,825 @@ type Word = {
   folderId: number;
   english: string;
   uzbek: string;
+  description: string | null;
   example: string | null;
   createdBy: number | null;
   createdAt: Date;
   updatedAt: Date;
 };
 
+type StudyMode = "test" | "type";
+type StudyDirection = "en-uz" | "uz-en" | "mixed";
+type ModeStats = Record<StudyMode, { attempted: number; correct: number }>;
+type SessionResult = { word: Word; correct: boolean };
+
+const TYPE_MODE_TIME_LIMIT_SECONDS = 9;
+const CORRECT_COOLDOWN_SECONDS = 3;
+
+const INITIAL_MODE_STATS: ModeStats = {
+  test: { attempted: 0, correct: 0 },
+  type: { attempted: 0, correct: 0 },
+};
+
+function shuffleArray<T>(items: T[]): T[] {
+  const arr = [...items];
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function normalizeAnswer(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function parseModeFromUrl(): StudyMode {
+  if (typeof window === "undefined") return "test";
+  const mode = new URLSearchParams(window.location.search).get("mode");
+  return mode === "type" ? "type" : "test";
+}
+
+function getDefaultDirectionForMode(mode: StudyMode): StudyDirection {
+  return mode === "test" ? "en-uz" : "uz-en";
+}
+
+function parseDirectionFromUrl(): StudyDirection {
+  if (typeof window === "undefined") return "en-uz";
+  const dir = new URLSearchParams(window.location.search).get("dir");
+  if (dir === "en-uz" || dir === "uz-en" || dir === "mixed") return dir;
+  return "en-uz";
+}
+
 export default function Memorize() {
   const { isAuthenticated } = useAuth();
+  const { locale } = useAppLocale();
+  const copy = getCopy(locale);
+  const utils = trpc.useUtils();
   const [, setLocation] = useLocation();
   const params = useParams();
   const folderId = parseInt(params.id || "0");
 
-  const [showTranslation, setShowTranslation] = useState(false);
-  const [swipeDirection, setSwipeDirection] = useState<"left" | "right" | null>(null);
-  const [dragOffset, setDragOffset] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const cardRef = useRef<HTMLDivElement>(null);
-  const startX = useRef(0);
+  const [mode, setMode] = useState<StudyMode>(parseModeFromUrl);
+  const [direction, setDirection] = useState<StudyDirection>(() => {
+    const initialMode = parseModeFromUrl();
+    const parsedDirection = parseDirectionFromUrl();
+    if (typeof window === "undefined")
+      return getDefaultDirectionForMode(initialMode);
+    const hasDir = new URLSearchParams(window.location.search).has("dir");
+    return hasDir ? parsedDirection : getDefaultDirectionForMode(initialMode);
+  });
 
-  // Create a queue-based system: words marked "Don't Know" go to the end
-  const [wordQueue, setWordQueue] = useState<Word[]>([]);
-  const [queueIndex, setQueueIndex] = useState(0);
+  const [remainingWords, setRemainingWords] = useState<Word[]>([]);
+  const [results, setResults] = useState<SessionResult[]>([]);
+  const [sessionTotal, setSessionTotal] = useState(0);
+  const [showStats, setShowStats] = useState(false);
+  const [modeStats, setModeStats] = useState<ModeStats>(INITIAL_MODE_STATS);
+  const [isCardReady, setIsCardReady] = useState(false);
 
-  // Fetch words in folder
-  const { data: words = [], isLoading: wordsLoading } = trpc.vocabulary.getWords.useQuery(
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [typedAnswer, setTypedAnswer] = useState("");
+  const [typedResult, setTypedResult] = useState<"correct" | "wrong" | null>(
+    null
+  );
+  const [typeTimeLeft, setTypeTimeLeft] = useState(
+    TYPE_MODE_TIME_LIMIT_SECONDS
+  );
+
+  const [feedbackState, setFeedbackState] = useState<
+    "correct" | "incorrect" | null
+  >(null);
+  const [countdown, setCountdown] = useState(0);
+
+  const typeInputRef = useRef<HTMLInputElement>(null);
+  const typedAnswerRef = useRef("");
+  const mixedDirectionByWordIdRef = useRef<
+    Map<number, Exclude<StudyDirection, "mixed">>
+  >(new Map());
+  const typeTimerRef = useRef<number | null>(null);
+  const typeTimerIntervalRef = useRef<number | null>(null);
+  const cooldownTimerRef = useRef<number | null>(null);
+  const pendingAnswerRef = useRef<{
+    correct: boolean;
+    answeredMode: StudyMode;
+  } | null>(null);
+
+  const { data: words = [], isLoading: wordsLoading, isError: wordsError } =
+    trpc.vocabulary.getWords.useQuery(
+      { folderId },
+      { enabled: isAuthenticated && folderId > 0 }
+    );
+  const { data: folder, isLoading: folderLoading, isError: folderError } =
+    trpc.vocabulary.getFolderById.useQuery(
+      { folderId },
+      { enabled: isAuthenticated && folderId > 0 }
+    );
+  const { data: folderProgress, isError: progressError } = trpc.vocabulary.getProgress.useQuery(
     { folderId },
     { enabled: isAuthenticated && folderId > 0 }
   );
 
-  // Update progress mutation
-  const updateProgressMutation = trpc.vocabulary.updateProgress.useMutation();
+  const setKnownStatusMutation = trpc.vocabulary.setKnownStatus.useMutation({
+    onSuccess: () => {
+      utils.vocabulary.getProgress.invalidate({ folderId });
+    },
+  });
+  const recordStudySessionMutation = trpc.vocabulary.recordStudySession.useMutation();
 
-  // Initialize word queue when words are loaded
+  const knownByWordId = useMemo(() => {
+    const map = new Map<number, boolean>();
+    (folderProgress?.progress || []).forEach((entry: any) => {
+      map.set(entry.wordId, entry.known === true);
+    });
+    return map;
+  }, [folderProgress]);
+
   useEffect(() => {
-    if (words.length > 0) {
-      setWordQueue([...words]);
-      setQueueIndex(0);
-    }
+    if (typeof window === "undefined") return;
+    const queryParams = new URLSearchParams(window.location.search);
+    queryParams.set("mode", mode);
+    queryParams.set("dir", direction);
+    const query = queryParams.toString();
+    const next = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
+    window.history.replaceState({}, "", next);
+  }, [mode, direction]);
+
+  useEffect(() => {
+    typedAnswerRef.current = typedAnswer;
+  }, [typedAnswer]);
+
+  useEffect(() => {
+    if (words.length === 0) return;
+    const shuffled = shuffleArray(words);
+    setRemainingWords(shuffled);
+    setSessionTotal(shuffled.length);
+    setResults([]);
+    setModeStats(INITIAL_MODE_STATS);
+    setSelectedOption(null);
+    setTypedAnswer("");
+    setTypedResult(null);
+    setFeedbackState(null);
+    setCountdown(0);
+    setTypeTimeLeft(TYPE_MODE_TIME_LIMIT_SECONDS);
+    mixedDirectionByWordIdRef.current.clear();
   }, [words]);
 
-  const currentWord = wordQueue[queueIndex];
-  const remainingWords = wordQueue.length - queueIndex;
+  useEffect(() => {
+    return () => {
+      if (typeTimerRef.current !== null)
+        window.clearTimeout(typeTimerRef.current);
+      if (typeTimerIntervalRef.current !== null)
+        window.clearInterval(typeTimerIntervalRef.current);
+      if (cooldownTimerRef.current !== null)
+        window.clearInterval(cooldownTimerRef.current);
+    };
+  }, []);
 
-  if (wordsLoading) {
+  const currentWord = remainingWords[0];
+  const answeredCount = results.length;
+  const correctCount = results.filter(item => item.correct).length;
+  const completedWords = answeredCount;
+  const progressPercent =
+    sessionTotal > 0 ? Math.round((answeredCount / sessionTotal) * 100) : 0;
+  const isSessionDone = remainingWords.length === 0 && results.length > 0;
+
+  const currentDirection: Exclude<StudyDirection, "mixed"> = useMemo(() => {
+    if (!currentWord) return "en-uz";
+    if (direction !== "mixed") return direction;
+
+    const cached = mixedDirectionByWordIdRef.current.get(currentWord.id);
+    if (cached) return cached;
+
+    const nextDirection = Math.random() < 0.5 ? "en-uz" : "uz-en";
+    mixedDirectionByWordIdRef.current.set(currentWord.id, nextDirection);
+    return nextDirection;
+  }, [currentWord, direction]);
+  const promptText = currentWord
+    ? currentDirection === "en-uz"
+      ? currentWord.english
+      : currentWord.uzbek
+    : "";
+  const answerText = currentWord
+    ? currentDirection === "en-uz"
+      ? currentWord.uzbek
+      : currentWord.english
+    : "";
+  const promptSpeechText = currentDirection === "en-uz" ? promptText : null;
+  const answerSpeechText = currentDirection === "uz-en" ? answerText : null;
+  const optionsContainEnglish = currentDirection === "uz-en";
+
+  const testOptions = useMemo(() => {
+    if (!currentWord || mode !== "test") return [];
+    const correct = answerText;
+    const pool = words.map(word =>
+      currentDirection === "en-uz" ? word.uzbek : word.english
+    );
+    const uniqueDistractors = Array.from(
+      new Set(pool.filter(value => value !== correct))
+    );
+    return shuffleArray(
+      Array.from(
+        new Set([correct, ...shuffleArray(uniqueDistractors).slice(0, 3)])
+      )
+    );
+  }, [answerText, currentDirection, currentWord, mode, words]);
+
+  useEffect(() => {
+    if (!currentWord) return;
+    setSelectedOption(null);
+    setTypedAnswer("");
+    setTypedResult(null);
+    setIsCardReady(false);
+    const rafId = requestAnimationFrame(() => setIsCardReady(true));
+    return () => cancelAnimationFrame(rafId);
+  }, [currentWord?.id, mode]);
+
+  useEffect(() => {
+    if (
+      mode !== "type" ||
+      !currentWord ||
+      typedResult !== null ||
+      feedbackState !== null ||
+      isSessionDone
+    )
+      return;
+    const timer = window.setTimeout(() => typeInputRef.current?.focus(), 80);
+    return () => window.clearTimeout(timer);
+  }, [currentWord?.id, mode, typedResult, feedbackState, isSessionDone]);
+
+  useEffect(() => {
+    if (typeTimerRef.current !== null) {
+      window.clearTimeout(typeTimerRef.current);
+      typeTimerRef.current = null;
+    }
+    if (typeTimerIntervalRef.current !== null) {
+      window.clearInterval(typeTimerIntervalRef.current);
+      typeTimerIntervalRef.current = null;
+    }
+
+    if (
+      mode !== "type" ||
+      !currentWord ||
+      typedResult !== null ||
+      feedbackState !== null ||
+      isSessionDone
+    ) {
+      setTypeTimeLeft(TYPE_MODE_TIME_LIMIT_SECONDS);
+      return;
+    }
+
+    const startedAt = Date.now();
+    setTypeTimeLeft(TYPE_MODE_TIME_LIMIT_SECONDS);
+
+    typeTimerIntervalRef.current = window.setInterval(() => {
+      const elapsedMs = Date.now() - startedAt;
+      const remaining = Math.max(
+        0,
+        Math.ceil((TYPE_MODE_TIME_LIMIT_SECONDS * 1000 - elapsedMs) / 1000)
+      );
+      setTypeTimeLeft(remaining);
+    }, 200);
+
+    typeTimerRef.current = window.setTimeout(() => {
+      setTypeTimeLeft(0);
+      submitTypedAnswer(typedAnswerRef.current);
+    }, TYPE_MODE_TIME_LIMIT_SECONDS * 1000);
+
+    return () => {
+      if (typeTimerRef.current !== null) {
+        window.clearTimeout(typeTimerRef.current);
+        typeTimerRef.current = null;
+      }
+      if (typeTimerIntervalRef.current !== null) {
+        window.clearInterval(typeTimerIntervalRef.current);
+        typeTimerIntervalRef.current = null;
+      }
+    };
+  }, [currentWord?.id, mode, typedResult, feedbackState, isSessionDone]);
+
+  const resetForNewWord = () => {
+    setSelectedOption(null);
+    setTypedAnswer("");
+    setTypedResult(null);
+  };
+
+  const removeCurrentWordAndStoreResult = (
+    correct: boolean,
+    answeredMode: StudyMode
+  ) => {
+    if (!currentWord) return;
+    setKnownStatusMutation.mutate({ wordId: currentWord.id, known: correct });
+
+    setModeStats(prev => {
+      const current = prev[answeredMode];
+      return {
+        ...prev,
+        [answeredMode]: {
+          attempted: current.attempted + 1,
+          correct: current.correct + (correct ? 1 : 0),
+        },
+      };
+    });
+
+    setResults(prev => [...prev, { word: currentWord, correct }]);
+    setRemainingWords(prev => prev.slice(1));
+    resetForNewWord();
+  };
+
+  const finalizePendingAnswer = () => {
+    const pendingAnswer = pendingAnswerRef.current;
+    if (!pendingAnswer) return;
+    pendingAnswerRef.current = null;
+    setFeedbackState(null);
+    setCountdown(0);
+    removeCurrentWordAndStoreResult(
+      pendingAnswer.correct,
+      pendingAnswer.answeredMode
+    );
+  };
+
+  const startAnswerCooldown = (correct: boolean, answeredMode: StudyMode) => {
+    if (cooldownTimerRef.current !== null) {
+      window.clearInterval(cooldownTimerRef.current);
+      cooldownTimerRef.current = null;
+    }
+    pendingAnswerRef.current = { correct, answeredMode };
+    setFeedbackState(correct ? "correct" : "incorrect");
+    setCountdown(CORRECT_COOLDOWN_SECONDS);
+
+    cooldownTimerRef.current = window.setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          if (cooldownTimerRef.current !== null) {
+            window.clearInterval(cooldownTimerRef.current);
+            cooldownTimerRef.current = null;
+          }
+          finalizePendingAnswer();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const handleAnswer = (correct: boolean, answeredMode: StudyMode = mode) => {
+    if (!currentWord || feedbackState !== null) return;
+    startAnswerCooldown(correct, answeredMode);
+  };
+
+  const submitTypedAnswer = (value: string) => {
+    if (!currentWord || feedbackState !== null || typedResult !== null) return;
+
+    const correct = normalizeAnswer(value) === normalizeAnswer(answerText);
+    setTypedResult(correct ? "correct" : "wrong");
+    startAnswerCooldown(correct, "type");
+  };
+
+  const handleCardClick = () => {
+    if (feedbackState === null) return;
+    if (cooldownTimerRef.current !== null) {
+      window.clearInterval(cooldownTimerRef.current);
+      cooldownTimerRef.current = null;
+    }
+    finalizePendingAnswer();
+  };
+
+  const restartSession = () => {
+    const shuffled = shuffleArray(words);
+    setRemainingWords(shuffled);
+    setSessionTotal(shuffled.length);
+    setResults([]);
+    setModeStats(INITIAL_MODE_STATS);
+    setFeedbackState(null);
+    setCountdown(0);
+    setTypeTimeLeft(TYPE_MODE_TIME_LIMIT_SECONDS);
+    resetForNewWord();
+    mixedDirectionByWordIdRef.current.clear();
+
+    if (cooldownTimerRef.current !== null) {
+      window.clearInterval(cooldownTimerRef.current);
+      cooldownTimerRef.current = null;
+    }
+    pendingAnswerRef.current = null;
+  };
+
+  const retryIncorrect = () => {
+    const incorrectWords = results
+      .filter(item => !item.correct)
+      .map(item => item.word);
+    if (incorrectWords.length === 0) return;
+    const shuffled = shuffleArray(incorrectWords);
+    setRemainingWords(shuffled);
+    setSessionTotal(shuffled.length);
+    setResults([]);
+    setModeStats(INITIAL_MODE_STATS);
+    setFeedbackState(null);
+    setCountdown(0);
+    setTypeTimeLeft(TYPE_MODE_TIME_LIMIT_SECONDS);
+    resetForNewWord();
+    mixedDirectionByWordIdRef.current.clear();
+    if (cooldownTimerRef.current !== null) {
+      window.clearInterval(cooldownTimerRef.current);
+      cooldownTimerRef.current = null;
+    }
+    pendingAnswerRef.current = null;
+  };
+
+  const handleModeChange = (nextMode: StudyMode) => {
+    setMode(nextMode);
+    setDirection(getDefaultDirectionForMode(nextMode));
+  };
+
+  useEffect(() => {
+    if (!isSessionDone || recordStudySessionMutation.isSuccess) return;
+    recordStudySessionMutation.mutate({
+      folderId,
+      knownCount: correctCount,
+      unknownCount: results.filter(item => !item.correct).length,
+      scope: "personal",
+      mode: "memorize",
+    });
+  }, [correctCount, folderId, isSessionDone, recordStudySessionMutation, results]);
+
+  if (folderLoading || wordsLoading) {
     return (
-      <div className="min-h-screen bg-[#0F1720] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-[#0EA5FF]" />
+      <div className="min-h-screen w-full app-bg flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-[var(--accent)]" />
       </div>
     );
   }
 
-  if (words.length === 0) {
+  if (folderError || wordsError || progressError) {
     return (
-      <div className="min-h-screen bg-[#0F1720] text-white flex flex-col items-center justify-center">
-        <p className="text-[#A6B0BE] mb-4">No words in this folder</p>
+      <div className="flex items-center justify-center min-h-[200px] text-destructive">
+        Failed to load. Please refresh and try again.
+      </div>
+    );
+  }
+
+  if (!folder || words.length === 0) {
+    return (
+      <div className="min-h-screen w-full app-bg scholar-title flex flex-col items-center justify-center">
+        <p className="scholar-muted mb-4">{copy.memorize.noWords}</p>
         <Button
-          onClick={() => setLocation("/")}
-          className="bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full"
+          onClick={() => setLocation(`/folder/${folderId}`)}
+          className="bg-[var(--accent)] hover:bg-[var(--accent-strong)] scholar-title rounded-full"
         >
-          Go Back
+          {copy.common.back}
         </Button>
       </div>
     );
   }
 
-  if (!currentWord) {
+  if (isSessionDone) {
+    const correctCountDone = results.filter(item => item.correct).length;
+    const incorrectCount = results.length - correctCountDone;
+    const correctPct =
+      results.length > 0
+        ? Math.round((correctCountDone / results.length) * 100)
+        : 0;
+    const incorrectPct = results.length > 0 ? 100 - correctPct : 0;
+    const incorrectWords = results
+      .filter(item => !item.correct)
+      .map(item => item.word.english);
+    const correctWords = results
+      .filter(item => item.correct)
+      .map(item => item.word.english);
+    const removedKnownCount = results.filter(
+      item => !item.correct && knownByWordId.get(item.word.id) === true
+    ).length;
+
     return (
-      <div className="flex items-center justify-center h-screen max-w-[390px] mx-auto px-6 bg-[#0F1720]">
-        <div className="text-center">
-          <p className="text-white text-xl font-bold mb-4">All words learned!</p>
-          <p className="text-[#A6B0BE] mb-8">Great job! You've completed this session.</p>
-          <Button
-            onClick={() => setLocation("/")}
-            className="px-6 py-3 bg-[#0EA5FF] hover:bg-[#0c8fd9] rounded-full text-white"
-          >
-            Go Back
-          </Button>
+      <div className="app-bg min-h-screen flex items-center justify-center px-4">
+        <div className="memorize-card w-full max-w-3xl rounded-3xl p-6 sm:p-8">
+          <h2 className="font-display text-3xl font-semibold scholar-title text-center">
+            {copy.memorize.sessionComplete}
+          </h2>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <div className="memorize-glass-panel rounded-2xl p-4">
+              <p className="scholar-title font-semibold">{copy.memorize.correct}</p>
+              <p className="mt-1 text-2xl scholar-title">
+                {correctCountDone} / {results.length} ({correctPct}%)
+              </p>
+            </div>
+            <div className="memorize-glass-panel rounded-2xl p-4">
+              <p className="scholar-title font-semibold">{copy.memorize.incorrect}</p>
+              <p className="mt-1 text-2xl scholar-title">
+                {incorrectCount} / {results.length} ({incorrectPct}%)
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-2 text-sm scholar-muted">
+            <p>{copy.memorize.removedFromKnown}: {removedKnownCount}</p>
+            <p>
+              {copy.memorize.stillUnknown}: {Math.max(0, incorrectCount - removedKnownCount)}
+            </p>
+          </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <div className="memorize-glass-panel rounded-2xl p-4">
+              <p className="mb-2 scholar-title font-medium">{copy.memorize.correctWords}</p>
+              <p className="text-sm scholar-muted">
+                {correctWords.length > 0 ? correctWords.join(", ") : "-"}
+              </p>
+            </div>
+            <div className="memorize-glass-panel rounded-2xl p-4">
+              <p className="mb-2 scholar-title font-medium">{copy.memorize.incorrectWords}</p>
+              <p className="text-sm scholar-muted">
+                {incorrectWords.length > 0 ? incorrectWords.join(", ") : "-"}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Button
+              onClick={retryIncorrect}
+              disabled={incorrectCount === 0}
+              className="rounded-full bg-[var(--accent)] hover:bg-[var(--accent-strong)] scholar-title"
+            >
+              {copy.memorize.retryIncorrect}
+            </Button>
+            <Button
+              onClick={() => setLocation(`/folder/${folderId}`)}
+              variant="outline"
+              className="rounded-full border-[var(--surface-border)] scholar-title hover:bg-[var(--accent-muted)]"
+            >
+              {copy.memorize.done}
+            </Button>
+          </div>
         </div>
       </div>
     );
   }
 
-  const handleAnswer = (known: boolean) => {
-    // Update progress in database
-    updateProgressMutation.mutate({ wordId: currentWord.id, known });
-
-    // Trigger animation
-    setSwipeDirection(known ? "right" : "left");
-
-    setTimeout(() => {
-      // Update queue logic
-      if (!known) {
-        // Move word to the END of the queue (fixed bug)
-        const newQueue = [...wordQueue];
-        const currentWordCopy = { ...currentWord };
-        newQueue.splice(queueIndex, 1);
-        newQueue.push(currentWordCopy);
-        setWordQueue(newQueue);
-        // Stay at same index (next word shifts into position)
-      } else {
-        // Remove from queue
-        const newQueue = wordQueue.filter((_, idx) => idx !== queueIndex);
-        setWordQueue(newQueue);
-        // Stay at same index
-      }
-
-      setShowTranslation(false);
-      setSwipeDirection(null);
-    }, 300);
-  };
-
-  // Touch/Mouse handlers for swipe
-  const handleStart = (clientX: number) => {
-    startX.current = clientX;
-    setIsDragging(true);
-  };
-
-  const handleMove = (clientX: number) => {
-    if (!isDragging) return;
-    const offset = clientX - startX.current;
-    setDragOffset(offset);
-  };
-
-  const handleEnd = () => {
-    if (!isDragging) return;
-    setIsDragging(false);
-
-    const threshold = 100;
-    if (Math.abs(dragOffset) > threshold) {
-      // Swipe detected
-      if (dragOffset > 0) {
-        handleAnswer(true); // Swipe right = I Know
-      } else {
-        handleAnswer(false); // Swipe left = Don't Know
-      }
-    }
-
-    setDragOffset(0);
-  };
-
-  const getCardTransform = () => {
-    if (swipeDirection === "right") {
-      return "translateX(400px) rotate(20deg)";
-    }
-    if (swipeDirection === "left") {
-      return "translateX(-400px) rotate(-20deg)";
-    }
-    if (isDragging) {
-      const rotation = dragOffset / 20;
-      return `translateX(${dragOffset}px) rotate(${rotation}deg)`;
-    }
-    return "translateX(0) rotate(0)";
-  };
-
-  const getCardOpacity = () => {
-    if (swipeDirection) return 0;
-    if (isDragging) {
-      return Math.max(0.5, 1 - Math.abs(dragOffset) / 400);
-    }
-    return 1;
-  };
-
   return (
-    <div className="flex flex-col h-screen max-w-[390px] mx-auto bg-[#0F1720]">
-      {/* Top Bar */}
-      <div className="flex items-center justify-between px-6 pt-4 pb-3">
-        <button
-          onClick={() => setLocation("/")}
-          className="p-2 -ml-2 hover:bg-[#15202B] rounded-lg transition-colors"
-        >
-          <ChevronLeft className="w-6 h-6 text-white" />
-        </button>
-        <h1 className="text-[#0EA5FF]">Memorize</h1>
-        <div className="w-6" />
-      </div>
-
-      {/* Flashcard Container */}
-      <div className="flex-1 flex items-center justify-center px-6 py-8">
-        {/* Card Stack Effect */}
-        <div className="relative w-full">
-          {/* Background cards */}
-          <div className="absolute inset-0 bg-[#1a2732] rounded-3xl transform translate-y-2 scale-95 opacity-50" />
-          <div className="absolute inset-0 bg-[#15202B] rounded-3xl transform translate-y-1 scale-[0.97] opacity-75" />
-
-          {/* Main Card */}
-          <div
-            ref={cardRef}
-            onMouseDown={(e) => handleStart(e.clientX)}
-            onMouseMove={(e) => handleMove(e.clientX)}
-            onMouseUp={handleEnd}
-            onMouseLeave={handleEnd}
-            onTouchStart={(e) => handleStart(e.touches[0].clientX)}
-            onTouchMove={(e) => handleMove(e.touches[0].clientX)}
-            onTouchEnd={handleEnd}
-            className="relative bg-[#15202B] rounded-3xl p-8 min-h-[500px] flex flex-col justify-between cursor-grab active:cursor-grabbing select-none"
-            style={{
-              transform: getCardTransform(),
-              opacity: getCardOpacity(),
-              transition: isDragging ? "none" : "transform 0.3s ease, opacity 0.3s ease",
-            }}
+    <div className="memorize-page flex flex-col min-h-screen w-full app-bg text-foreground">
+      <div className="page-navbar sticky top-0 z-40">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <button
+            onClick={() => setLocation(`/folder/${folderId}`)}
+            className="glass-icon-button"
+            type="button"
+            aria-label={copy.common.back}
           >
-            {/* Word */}
-            <div className="flex-1 flex items-center justify-center">
-              <h2 className="text-white text-center text-4xl font-bold">{currentWord.english}</h2>
-            </div>
-
-            {/* Translation Area */}
-            <div className="mb-8">
-              {!showTranslation ? (
-                <button
-                  onClick={() => setShowTranslation(true)}
-                  className="w-full bg-[#6B7280] rounded-2xl py-8 flex items-center justify-center gap-3 hover:bg-[#7a8492] transition-colors"
-                >
-                  <Eye className="w-5 h-5 text-white" />
-                  <span className="text-white">Show translation</span>
-                </button>
-              ) : (
-                <div className="w-full bg-[#6B7280] rounded-2xl py-8 px-6 text-center">
-                  <p className="text-white mb-2 text-lg font-semibold">{currentWord.uzbek}</p>
-                  {currentWord.example && (
-                    <p className="text-[#A6B0BE] text-sm">"{currentWord.example}"</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-4">
-              <button
-                onClick={() => handleAnswer(false)}
-                className="flex-1 h-16 bg-[#0EA5FF] rounded-full flex items-center justify-center hover:bg-[#0c8fd9] transition-colors"
-              >
-                <span className="text-white font-semibold">Don't Know</span>
-              </button>
-              <button
-                onClick={() => handleAnswer(true)}
-                className="flex-1 h-16 bg-[#10B981] rounded-full flex items-center justify-center hover:bg-[#0ea073] transition-colors"
-              >
-                <span className="text-white font-semibold">I Know</span>
-              </button>
-            </div>
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <div className="min-w-0 flex-1 text-center">
+            <h1 className="truncate font-display text-base text-strong">
+              {folder.name}
+            </h1>
+            <p className="text-[11px] text-dim">{copy.memorize.title}</p>
           </div>
-
-          {/* Swipe Indicators */}
-          {isDragging && (
-            <>
-              {dragOffset > 50 && (
-                <div className="absolute top-1/4 right-8 text-[#10B981] opacity-80 pointer-events-none">
-                  <div className="text-6xl">✓</div>
-                </div>
-              )}
-              {dragOffset < -50 && (
-                <div className="absolute top-1/4 left-8 text-[#0EA5FF] opacity-80 pointer-events-none">
-                  <div className="text-6xl">✗</div>
-                </div>
-              )}
-            </>
-          )}
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="page-navbar-pill rounded-full px-3 py-1.5 text-xs"
+                >
+                  {mode === "test" ? copy.memorize.modeTest : copy.memorize.modeType}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="glass-dropdown min-w-36 rounded-2xl p-1.5"
+              >
+                <DropdownMenuItem
+                  onClick={() => handleModeChange("test")}
+                  className="glass-dropdown-item"
+                >
+                  {copy.memorize.modeTest}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleModeChange("type")}
+                  className="glass-dropdown-item"
+                >
+                  {copy.memorize.modeType}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="page-navbar-pill rounded-full px-3 py-1.5 text-xs"
+                >
+                  {direction === "en-uz"
+                    ? copy.memorize.directionEnglish
+                    : direction === "uz-en"
+                      ? copy.memorize.directionUzbek
+                      : copy.memorize.directionMixed}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="glass-dropdown min-w-36 rounded-2xl p-1.5"
+              >
+                <DropdownMenuItem
+                  onClick={() => setDirection("en-uz")}
+                  className="glass-dropdown-item"
+                >
+                  {copy.memorize.directionEnglishToUzbek}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setDirection("uz-en")}
+                  className="glass-dropdown-item"
+                >
+                  {copy.memorize.directionUzbekToEnglish}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setDirection("mixed")}
+                  className="glass-dropdown-item"
+                >
+                  {copy.memorize.directionMixed}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <button
+              onClick={restartSession}
+              className="glass-icon-button"
+              type="button"
+              aria-label="Restart"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Card Counter */}
-      <div className="text-center pb-8">
-        <span className="text-[#A6B0BE]">{remainingWords} remaining</span>
+      <div className="mx-auto w-full max-w-6xl px-4 pt-3 sm:px-6">
+        <div className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface)] px-4 py-3">
+          <div className="mb-2 flex items-center justify-between gap-3 text-xs scholar-muted">
+            <span>
+              {answeredCount}/{sessionTotal}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowStats(prev => !prev)}
+              className="transition hover:text-[var(--text-primary)]"
+            >
+              {showStats ? copy.memorize.hideStats : copy.memorize.showStats}
+            </button>
+            <span>✓ {correctCount} {copy.memorize.correct.toLowerCase()}</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-[color-mix(in_srgb,_var(--text-primary)_12%,_transparent)]">
+            <div
+              className="h-full rounded-full bg-[var(--accent)] transition-all"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+          {showStats ? (
+            <div className="mt-2 flex flex-wrap gap-2 text-[11px] scholar-muted">
+              <span className="scholar-title">
+                {copy.memorize.modeTest} {modeStats.test.correct}/{modeStats.test.attempted}
+              </span>
+              <span className="scholar-title">
+                {copy.memorize.modeType} {modeStats.type.correct}/{modeStats.type.attempted}
+              </span>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="flex flex-1 items-start justify-center px-4 py-3 sm:px-6 md:items-center sm:py-10">
+        <div
+          onClick={handleCardClick}
+          className="memorize-card relative flex w-full max-w-3xl flex-col gap-5 rounded-3xl p-4 sm:p-8 md:h-[560px] md:justify-between"
+          style={{
+            transform: isCardReady
+              ? "translateY(0) scale(1)"
+              : "translateY(4px) scale(0.996)",
+            opacity: isCardReady ? 1 : 0.985,
+            transition: "transform 0.18s ease-out, opacity 0.16s ease-out",
+            cursor: feedbackState ? "pointer" : "default",
+            overflow: "hidden",
+          }}
+        >
+          <div className="flex shrink-0 items-center justify-center md:flex-1">
+            <div className="w-full text-center">
+              <p className="mb-3 text-xs uppercase tracking-[0.3em] scholar-muted">
+                {copy.review.wordOf.replace("{current}", String(completedWords + 1)).replace("{total}", String(sessionTotal))}
+              </p>
+              <p className="mb-2 text-sm scholar-muted">
+                {mode === "test"
+                  ? copy.memorize.chooseCorrectAnswer
+                  : copy.memorize.typeTranslation}
+              </p>
+              {mode === "type" ? (
+                <p className="mb-3 text-xs uppercase tracking-[0.24em] text-[#FBBF24]">
+                  {copy.memorize.timeLeft}: {typeTimeLeft}s
+                </p>
+              ) : null}
+              <div className="flex items-center justify-center gap-2">
+                <h2 className="text-center text-[1.9rem] font-bold leading-tight scholar-title sm:text-4xl">
+                  {promptText}
+                </h2>
+                {promptSpeechText ? (
+                  <EnglishSpeakButton
+                    text={promptSpeechText}
+                    className="bg-white/10 scholar-title hover:bg-white/15"
+                  />
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex min-h-0 flex-col gap-3">
+            {mode === "test" ? (
+              <div className="grid grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2">
+                {testOptions.map(option => {
+                  const isSelected = selectedOption === option;
+                  const isRightOption = option === answerText;
+                  let optionClass = "memorize-glass-panel hover:bg-white/10";
+                  if (selectedOption) {
+                    if (isRightOption) optionClass = "bg-[#10B981]";
+                    else if (isSelected) optionClass = "bg-[#EF4444]";
+                    else optionClass = "memorize-glass-panel opacity-70";
+                  }
+
+                  return (
+                    <div
+                      key={option}
+                      className={`flex min-h-14 items-center gap-2 rounded-2xl px-4 py-3 scholar-title transition ${optionClass}`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (selectedOption || feedbackState !== null) return;
+                          setSelectedOption(option);
+                          handleAnswer(option === answerText, "test");
+                        }}
+                        disabled={!!selectedOption || feedbackState !== null}
+                        className="flex-1 text-left"
+                      >
+                        {option}
+                      </button>
+                      {optionsContainEnglish ? (
+                        <EnglishSpeakButton
+                          text={option}
+                          className="bg-black/10 scholar-title hover:bg-black/20"
+                        />
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <input
+                  ref={typeInputRef}
+                  value={typedAnswer}
+                  onChange={e => setTypedAnswer(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      submitTypedAnswer(typedAnswer);
+                    }
+                  }}
+                  placeholder={copy.memorize.typeAnswer}
+                  className="memorize-glass-panel w-full rounded-2xl px-4 py-3 scholar-title outline-none focus:border-[var(--accent)]"
+                  disabled={feedbackState !== null || typedResult !== null}
+                />
+                <Button
+                  onClick={() => submitTypedAnswer(typedAnswer)}
+                  disabled={
+                    feedbackState !== null ||
+                    !typedAnswer.trim() ||
+                    typedResult !== null
+                  }
+                  className="w-full rounded-2xl bg-[var(--accent)] hover:bg-[var(--accent-strong)] py-3 scholar-title"
+                >
+                  {copy.memorize.checkAnswer}
+                </Button>
+                {typedResult ? (
+                  <div
+                    className={`rounded-2xl px-4 py-3 text-sm ${typedResult === "correct" ? "bg-[#10B981]" : "bg-[#EF4444]"} scholar-title`}
+                  >
+                    {typedResult === "correct"
+                      ? copy.memorize.answerCorrect
+                      : copy.memorize.answerWrong.replace("{answer}", answerText)}
+                  </div>
+                ) : null}
+              </div>
+            )}
+            <div className="h-11">
+              {feedbackState ? (
+                <div
+                  className={`rounded-xl px-3 py-2 text-center text-sm scholar-title ${
+                    feedbackState === "correct"
+                      ? "border border-[#10B981]/40 bg-[#10B981]/15"
+                      : "border border-[#EF4444]/40 bg-[#EF4444]/15"
+                  }`}
+                >
+                  {feedbackState === "correct" ? `✓ ${copy.memorize.correct}!` : `✗ ${copy.memorize.incorrect}!`}{" "}
+                  {copy.memorize.nextIn.replace("{countdown}", String(countdown))}
+                  <span className="ml-1 text-xs opacity-70">{copy.memorize.tapToSkip}</span>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

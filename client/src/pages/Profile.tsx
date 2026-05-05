@@ -1,293 +1,379 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { ThemePaletteCard } from "@/components/cards/ThemePaletteCard";
+import { MobileAppShell } from "@/components/MobileAppShell";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { ChevronLeft, LogOut, User, BookOpen, TrendingUp, Edit2, Trash2, AlertTriangle, Loader2 } from "lucide-react";
-import { useLocation } from "wouter";
+import { useAppLocale } from "@/contexts/AppLocaleContext";
+import { useTheme, type ThemeMode, type ThemePaletteId } from "@/contexts/ThemeContext";
+import { getCopy } from "@/lib/appCopy";
 import { trpc } from "@/lib/trpc";
-import { useState, useEffect } from "react";
+import { ArrowLeft, Edit2, Loader2, LogOut, Settings, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useLocation } from "wouter";
 import { toast } from "sonner";
+
+const PALETTE_COPY: Record<ThemePaletteId, { en: { name: string; description: string }; uz: { name: string; description: string } }> = {
+  "day-ocean": {
+    en: { name: "Ocean Mist", description: "Cool blue and aqua" },
+    uz: { name: "Okean nafasi", description: "Sokin ko'k va akva" },
+  },
+  "day-forest": {
+    en: { name: "Forest Mint", description: "Green and clean" },
+    uz: { name: "O'rmon minti", description: "Yashil va toza" },
+  },
+  "day-sand": {
+    en: { name: "Sand Dune", description: "Warm beige and amber" },
+    uz: { name: "Qumtepalar", description: "Iliq bej va qahrabo" },
+  },
+  "day-rose": {
+    en: { name: "Rose Blush", description: "Soft pink accents" },
+    uz: { name: "Atirgul jilosi", description: "Yumshoq pushti akslar" },
+  },
+  "day-slate": {
+    en: { name: "Slate Sky", description: "Neutral blue-gray" },
+    uz: { name: "Shifer osmon", description: "Neytral ko'k-kulrang" },
+  },
+  "night-aurora": {
+    en: { name: "Aurora", description: "Teal neon on deep navy" },
+    uz: { name: "Shafaq", description: "To'q dengiz rangida turkuaz neon" },
+  },
+  "night-midnight": {
+    en: { name: "Midnight Blue", description: "Blue and indigo" },
+    uz: { name: "Yarim tun moviyi", description: "Ko'k va indigo" },
+  },
+  "night-graphite": {
+    en: { name: "Graphite", description: "Muted mono contrast" },
+    uz: { name: "Grafit", description: "Yumshoq monoxrom kontrast" },
+  },
+};
 
 export default function Profile() {
   const { user, logout, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
+  const { locale } = useAppLocale();
+  const { theme, setTheme, palette, setPalette, lightPalettes, darkPalettes } = useTheme();
+  const copy = getCopy(locale);
+  const utils = trpc.useUtils();
+
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
+  const [paletteMode, setPaletteMode] = useState<ThemeMode>(theme);
 
-  // Initialize edit fields when user data loads
   useEffect(() => {
-    if (user) {
-      setEditName(user.name || "");
-      setEditEmail(user.email || "");
-    }
+    if (!user) return;
+    setEditName(user.name || "");
+    setEditEmail(user.email || "");
   }, [user]);
 
-  // Fetch total statistics
-  const { data: totalStats } = trpc.auth.getTotalStats.useQuery(
-    undefined,
-    { enabled: isAuthenticated }
-  );
+  useEffect(() => {
+    setPaletteMode(theme);
+  }, [theme]);
 
-  // Fetch folders to calculate folder count
-  const { data: folders = [] } = trpc.vocabulary.getFolders.useQuery(
-    undefined,
-    { enabled: isAuthenticated }
-  );
+  const { data: totalStats, isError: totalStatsError } = trpc.auth.getTotalStats.useQuery(undefined, { enabled: isAuthenticated });
+  const { data: folders = [], isError: foldersError } = trpc.vocabulary.getFolders.useQuery(undefined, { enabled: isAuthenticated });
 
-  // Update profile mutation
   const updateProfileMutation = trpc.auth.updateProfile.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       setShowEditDialog(false);
-      toast.success("Profile updated successfully");
-      // Invalidate queries to refresh data
-      trpc.useUtils().auth.me.invalidate();
-      trpc.useUtils().auth.getTotalStats.invalidate();
-      // Refresh the page after a short delay to show updated data
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
+      await Promise.all([
+        utils.auth.me.invalidate(),
+        utils.auth.getTotalStats.invalidate(),
+      ]);
+      toast.success(copy.profile.updated);
     },
-    onError: (error) => {
-      console.error("Update error:", error);
-      toast.error(error.message || "Failed to update profile");
-    },
+    onError: error => toast.error(error.message || copy.profile.updateFailed),
   });
 
-  // Delete account mutation
   const deleteAccountMutation = trpc.auth.deleteAccount.useMutation({
-    onSuccess: () => {
-      toast.success("Account deleted successfully");
-      logout();
+    onSuccess: async () => {
+      toast.success(copy.profile.deleted);
+      await logout();
       setLocation("/");
     },
-    onError: (error) => {
-      toast.error(error.message || "Failed to delete account");
-    },
+    onError: error => toast.error(error.message || copy.profile.deleteFailed),
   });
 
-  // Calculate statistics
   const totalFolders = folders.length;
   const totalWords = totalStats?.totalWords || 0;
   const knownWords = totalStats?.knownWords || 0;
   const unknownWords = totalStats?.unknownWords || 0;
+  const donutCx = 110;
+  const donutCy = 110;
+  const donutRadius = 82;
+  const donutStrokeWidth = 9;
+  const donutDasharray = 2 * Math.PI * donutRadius;
+  const knownRatio = totalWords > 0 ? knownWords / totalWords : 0;
+  const targetDashoffset = donutDasharray * (1 - knownRatio);
+  const [animatedKnownDashoffset, setAnimatedKnownDashoffset] = useState(donutDasharray);
+  const [animatedTotalWords, setAnimatedTotalWords] = useState(0);
+  const hasStatsAnimatedRef = useRef(false);
 
-  const handleLogout = async () => {
-    await logout();
-    setLocation("/");
-  };
+  useEffect(() => {
+    if (!totalStats || hasStatsAnimatedRef.current) return;
+    hasStatsAnimatedRef.current = true;
 
-  const handleUpdateProfile = () => {
-    if (!editName.trim()) {
-      toast.error("Name cannot be empty");
-      return;
-    }
+    const durationMs = 700;
+    const start = performance.now();
+    const startDashoffset = donutDasharray;
 
-    updateProfileMutation.mutate({
-      name: editName.trim(),
-      email: editEmail.trim() || undefined,
-    });
-  };
+    let rafId = 0;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / durationMs);
+      const eased = 1 - Math.pow(1 - t, 3); // ease-out
 
-  const handleDeleteAccount = () => {
-    deleteAccountMutation.mutate();
-  };
+      setAnimatedKnownDashoffset(
+        startDashoffset + (targetDashoffset - startDashoffset) * eased
+      );
+      setAnimatedTotalWords(Math.round(totalWords * eased));
+
+      if (t < 1) {
+        rafId = window.requestAnimationFrame(tick);
+      }
+    };
+
+    rafId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(rafId);
+  }, [totalStats, totalWords, donutDasharray, targetDashoffset]);
+
+  const visiblePalettes = paletteMode === "light" ? lightPalettes : darkPalettes;
+  const paletteLocale = locale === "uz" ? "uz" : "en";
+
+  if (totalStatsError || foldersError) {
+    return (
+      <div className="flex items-center justify-center min-h-[200px] text-destructive">
+        Failed to load. Please refresh and try again.
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#0F1720] text-white flex flex-col max-w-[390px] mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 pt-4 pb-3 border-b border-[#15202B]">
+    <MobileAppShell
+      title={copy.profile.title}
+      subtitle={user?.email || undefined}
+      centeredHeader
+      leftSlot={
         <button
+          type="button"
           onClick={() => setLocation("/")}
-          className="p-2 -ml-2 hover:bg-[#15202B] rounded-lg transition-colors"
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--surface-border)] bg-[var(--surface)] scholar-title transition hover:border-[var(--accent)]"
+          aria-label="Back"
         >
-          <ChevronLeft className="w-6 h-6 text-white" />
+          <ArrowLeft className="h-4 w-4" />
         </button>
-        <h1 className="text-xl font-bold">Profile</h1>
-        <div className="w-6" />
-      </div>
-
-      {/* Profile Section */}
-      <div className="px-6 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-[#0EA5FF] rounded-full flex items-center justify-center">
-              <User className="w-8 h-8 text-white" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-white">{user?.name || "User"}</h2>
-              <p className="text-[#A6B0BE]">{user?.email || "No email"}</p>
-            </div>
-          </div>
-          <button
-            onClick={() => setShowEditDialog(true)}
-            className="p-2 hover:bg-[#15202B] rounded-lg transition-colors"
-            title="Edit profile"
-          >
-            <Edit2 className="w-5 h-5 text-[#0EA5FF]" />
-          </button>
-        </div>
-      </div>
-
-      {/* Statistics Section */}
-      <div className="px-6 py-4">
-        <h3 className="text-lg font-semibold text-white mb-4">Learning Statistics</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <Card className="bg-[#15202B] border-0 p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <BookOpen className="w-5 h-5 text-[#0EA5FF]" />
-              <span className="text-[#A6B0BE] text-sm">Folders</span>
-            </div>
-            <p className="text-3xl font-bold text-white">{totalFolders}</p>
-          </Card>
-
-          <Card className="bg-[#15202B] border-0 p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <TrendingUp className="w-5 h-5 text-[#10B981]" />
-              <span className="text-[#A6B0BE] text-sm">Known</span>
-            </div>
-            <p className="text-3xl font-bold text-white">{knownWords}</p>
-          </Card>
-
-          <Card className="bg-[#15202B] border-0 p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <BookOpen className="w-5 h-5 text-[#0EA5FF]" />
-              <span className="text-[#A6B0BE] text-sm">Unknown</span>
-            </div>
-            <p className="text-3xl font-bold text-white">{unknownWords}</p>
-          </Card>
-
-          <Card className="bg-[#15202B] border-0 p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <BookOpen className="w-5 h-5 text-[#A6B0BE]" />
-              <span className="text-[#A6B0BE] text-sm">Total</span>
-            </div>
-            <p className="text-3xl font-bold text-white">{totalWords}</p>
-          </Card>
-        </div>
-      </div>
-
-      {/* Account Section */}
-      <div className="px-6 py-4 flex-1">
-        <h3 className="text-lg font-semibold text-white mb-4">Account</h3>
-        <Card className="bg-[#15202B] border-0 p-4 mb-4">
-          <div className="space-y-3">
-            <div>
-              <p className="text-[#A6B0BE] text-sm">Email</p>
-              <p className="text-white">{user?.email || "Not provided"}</p>
-            </div>
-            <div>
-              <p className="text-[#A6B0BE] text-sm">Login Method</p>
-              <p className="text-white">{user?.loginMethod || "Manus OAuth"}</p>
-            </div>
-            <div>
-              <p className="text-[#A6B0BE] text-sm">Member Since</p>
-              <p className="text-white">
-                {user?.createdAt
-                  ? new Date(user.createdAt).toLocaleDateString()
-                  : "Recently"}
-              </p>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Action Buttons */}
-      <div className="px-6 py-4 border-t border-[#15202B] space-y-3">
-        <Button
-          onClick={handleLogout}
-          className="w-full bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full flex items-center justify-center gap-2"
+      }
+      rightActions={
+        <button
+          type="button"
+          onClick={() => setShowEditDialog(true)}
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--surface-border)] bg-[var(--surface)] scholar-title transition hover:border-[var(--accent)]"
+          aria-label="Settings"
         >
-          <LogOut className="w-4 h-4" />
-          Logout
-        </Button>
-        <Button
-          onClick={() => setShowDeleteDialog(true)}
-          className="w-full bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center gap-2"
-        >
-          <Trash2 className="w-4 h-4" />
-          Delete Account
-        </Button>
-      </div>
-
-      {/* Edit Profile Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="bg-[#15202B] border-[#1a2732] text-white">
-          <DialogHeader>
-            <DialogTitle>Edit Profile</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="text-[#A6B0BE] text-sm mb-2 block">Name</label>
-              <Input
-                placeholder="Your name"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                className="bg-[#0F1720] border-[#1a2732] text-white placeholder-[#A6B0BE]"
-              />
-            </div>
-            <div>
-              <label className="text-[#A6B0BE] text-sm mb-2 block">Email</label>
-              <Input
-                type="email"
-                placeholder="your@email.com"
-                value={editEmail}
-                onChange={(e) => setEditEmail(e.target.value)}
-                className="bg-[#0F1720] border-[#1a2732] text-white placeholder-[#A6B0BE]"
-              />
+          <Settings className="h-4 w-4" />
+        </button>
+      }
+    >
+      <div className="space-y-6 pb-4">
+        <section className="scholar-surface-elevated p-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-[var(--accent-muted)] text-2xl font-bold scholar-title">
+                {(user?.name || "A").slice(0, 1).toUpperCase()}
+              </div>
+              <div>
+                <h2 className="text-2xl font-semibold scholar-title">{user?.name || copy.profile.defaultName}</h2>
+                <p className="scholar-muted">{user?.email || copy.profile.defaultEmail}</p>
+              </div>
             </div>
             <Button
-              onClick={handleUpdateProfile}
-              disabled={updateProfileMutation.isPending}
-              className="w-full bg-[#0EA5FF] hover:bg-[#0c8fd9] text-white rounded-full"
+              onClick={() => setShowEditDialog(true)}
+              variant="outline"
+              className="h-10 rounded-[var(--radius-button)] border-[var(--surface-border)] bg-transparent scholar-title hover:bg-[var(--accent-muted)]"
             >
-              {updateProfileMutation.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                "Save Changes"
-              )}
+              <Edit2 className="mr-1 h-4 w-4" />
+              {copy.profile.editProfile}
+            </Button>
+          </div>
+        </section>
+
+        <section className="scholar-surface p-5 md:p-6">
+          <div className="space-y-5">
+            <div className="relative mx-auto h-52 w-52">
+              <svg className="h-full w-full -rotate-90" viewBox="0 0 220 220" aria-hidden="true">
+                <circle
+                  cx={donutCx}
+                  cy={donutCy}
+                  r={donutRadius}
+                  fill="none"
+                  stroke="color-mix(in srgb, var(--text-primary) 16%, transparent)"
+                  strokeWidth={donutStrokeWidth}
+                  opacity="0.18"
+                />
+                <circle
+                  cx={donutCx}
+                  cy={donutCy}
+                  r={donutRadius}
+                  fill="none"
+                  stroke="#3b82f6"
+                  strokeWidth={donutStrokeWidth}
+                  opacity="0.9"
+                />
+                <circle
+                  cx={donutCx}
+                  cy={donutCy}
+                  r={donutRadius}
+                  fill="none"
+                  stroke="#22c55e"
+                  strokeWidth={donutStrokeWidth}
+                  strokeLinecap="round"
+                  strokeDasharray={donutDasharray}
+                  strokeDashoffset={animatedKnownDashoffset}
+                />
+              </svg>
+              <div className="absolute inset-0 grid place-items-center text-center">
+                <div>
+                  <div className="text-3xl font-semibold leading-none scholar-title">
+                    {knownWords} / {animatedTotalWords}
+                  </div>
+                  <div className="mt-2 text-xs uppercase tracking-[0.2em] scholar-muted">
+                    {copy.profile.knownOfTotal}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-center gap-6 text-sm">
+              <div className="scholar-title">
+                <span className="mr-1 text-[#22c55e]">●</span>
+                {copy.profile.known}: {knownWords}
+              </div>
+              <div className="scholar-title">
+                <span className="mr-1 text-[#3b82f6]">●</span>
+                {copy.profile.unknown}: {unknownWords}
+              </div>
+            </div>
+
+            <div className="h-px w-full bg-[color-mix(in_srgb,var(--text-primary)_12%,transparent)]" />
+            <div className="text-right text-xs scholar-muted">{copy.profile.folders}: {totalFolders}</div>
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="font-display text-2xl font-semibold scholar-title">{copy.profile.themeSettings}</h3>
+            <div className="scholar-surface-elevated inline-flex items-center p-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setPaletteMode("dark");
+                  setTheme?.("dark");
+                }}
+                className={`rounded-[10px] px-3 py-1.5 text-xs ${paletteMode === "dark" ? "bg-[var(--accent-muted)] text-[var(--accent)]" : "scholar-muted"}`}
+              >
+                {copy.profile.nightPalettes}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPaletteMode("light");
+                  setTheme?.("light");
+                }}
+                className={`rounded-[10px] px-3 py-1.5 text-xs ${paletteMode === "light" ? "bg-[var(--accent-muted)] text-[var(--accent)]" : "scholar-muted"}`}
+              >
+                {copy.profile.dayPalettes}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            {visiblePalettes.map(p => (
+              <ThemePaletteCard
+                key={p.id}
+                name={PALETTE_COPY[p.id][paletteLocale].name}
+                description={PALETTE_COPY[p.id][paletteLocale].description}
+                colors={p.preview}
+                isActive={p.id === palette}
+                onClick={() => setPalette?.(p.id)}
+              />
+            ))}
+          </div>
+        </section>
+
+        <section className="scholar-surface p-4">
+          <div className="grid gap-3 md:grid-cols-2">
+            <Button
+              onClick={async () => {
+                await logout();
+                setLocation("/");
+              }}
+              className="h-10 rounded-[var(--radius-button)] bg-[var(--accent)] text-black hover:bg-[var(--accent-strong)] hover:text-white"
+            >
+              <LogOut className="mr-1 h-4 w-4" />
+              {copy.profile.logout}
+            </Button>
+            <Button
+              onClick={() => setShowDeleteDialog(true)}
+              className="h-10 rounded-[var(--radius-button)] bg-red-600 text-white hover:bg-red-700"
+            >
+              <Trash2 className="mr-1 h-4 w-4" />
+              {copy.profile.deleteAccount}
+            </Button>
+          </div>
+        </section>
+      </div>
+
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="scholar-surface-elevated border-[var(--surface-border)]">
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl">{copy.profile.editProfile}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              value={editName}
+              onChange={e => setEditName(e.target.value)}
+              placeholder={copy.profile.namePlaceholder}
+              className="border-[var(--surface-border)] bg-[var(--surface)] scholar-title"
+            />
+            <Input
+              value={editEmail}
+              onChange={e => setEditEmail(e.target.value)}
+              placeholder={copy.profile.emailPlaceholder}
+              className="border-[var(--surface-border)] bg-[var(--surface)] scholar-title"
+            />
+            <Button
+              onClick={() => {
+                if (!editName.trim()) {
+                  toast.error(copy.profile.emptyName);
+                  return;
+                }
+                updateProfileMutation.mutate({ name: editName.trim(), email: editEmail.trim() || undefined });
+              }}
+              disabled={updateProfileMutation.isPending}
+              className="h-10 w-full rounded-[var(--radius-button)] bg-[var(--accent)] text-black hover:bg-[var(--accent-strong)] hover:text-white"
+            >
+              {updateProfileMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : copy.profile.save}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Account Confirmation Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent className="bg-[#15202B] border-[#1a2732] text-white">
+        <DialogContent className="scholar-surface-elevated border-[var(--surface-border)]">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-500">
-              <AlertTriangle className="w-5 h-5" />
-              Delete Account
-            </DialogTitle>
+            <DialogTitle className="font-display text-2xl">{copy.profile.deleteConfirmTitle}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-[#A6B0BE]">
-              Are you sure you want to delete your account? This action cannot be undone. All your personal folders, words, and learning progress will be permanently deleted.
-            </p>
-            <div className="flex gap-3">
-              <Button
-                onClick={() => setShowDeleteDialog(false)}
-                className="flex-1 bg-[#1a2732] hover:bg-[#15202B] text-white rounded-full"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleDeleteAccount}
-                disabled={deleteAccountMutation.isPending}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-full"
-              >
-                {deleteAccountMutation.isPending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  "Delete"
-                )}
-              </Button>
-            </div>
-          </div>
+          <p className="text-sm scholar-muted">{copy.profile.deleteConfirmBody}</p>
+          <Button
+            onClick={() => deleteAccountMutation.mutate()}
+            disabled={deleteAccountMutation.isPending}
+            className="h-10 w-full rounded-[var(--radius-button)] bg-red-600 text-white hover:bg-red-700"
+          >
+            {deleteAccountMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : copy.profile.delete}
+          </Button>
         </DialogContent>
       </Dialog>
-    </div>
+    </MobileAppShell>
   );
 }

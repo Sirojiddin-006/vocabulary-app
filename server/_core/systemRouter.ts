@@ -4,14 +4,15 @@ import { adminProcedure, publicProcedure, router } from "./trpc";
 
 export const systemRouter = router({
   health: publicProcedure
-    .input(
-      z.object({
-        timestamp: z.number().min(0, "timestamp cannot be negative"),
-      })
-    )
-    .query(() => ({
-      ok: true,
-    })),
+    .query(async () => {
+      return {
+        ok: true,
+        status: "healthy",
+        timestamp: new Date().toISOString(),
+        version: process.env.npm_package_version ?? "unknown",
+        uptime: Math.floor(process.uptime()),
+      };
+    }),
 
   notifyOwner: adminProcedure
     .input(
