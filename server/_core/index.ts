@@ -205,10 +205,10 @@ async function startServer() {
   }
 
   const PORT = parseInt(process.env.PORT || "8080", 10);
-  const HOST = process.env.HOST || "0.0.0.0";
+  const HOST = "0.0.0.0";
 
   server.listen(PORT, HOST, () => {
-    console.log(`Server running on http://localhost:${PORT}/`);
+    console.log(`Server running on http://${HOST}:${PORT}/`);
   });
 
   const shutdown = (signal: string) => {
