@@ -6,7 +6,7 @@ import { createServer } from "http";
 import OpenAI from "openai";
 import rateLimit from "express-rate-limit";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { getDb } from "../db";
+import { closeDbPool, getDb } from "../db";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { ENV } from "./env";
@@ -36,6 +36,24 @@ function isAllowedCorsOrigin(
   } catch {
     return false;
   }
+}
+
+function normalizeOrigin(origin: string) {
+  return origin.trim().replace(/\/+$/, "");
+}
+
+function resolveAllowedOrigins() {
+  const configuredOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(",").map(normalizeOrigin)
+    : ["http://localhost:3000", "http://localhost:5173"];
+
+  return Array.from(
+    new Set([
+      ...configuredOrigins.filter(Boolean),
+      "https://www.zerocod.uz",
+      "https://zerocod.uz",
+    ])
+  );
 }
 
 function validateEnv(): void {
@@ -106,9 +124,7 @@ async function startServer() {
     max: 30,
     message: { error: "TTS rate limit exceeded" },
   });
-  const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(",").map(origin => origin.trim())
-    : ["http://localhost:3000", "http://localhost:5173"];
+  const allowedOrigins = resolveAllowedOrigins();
 
   app.use(
     cors((req, callback) => ({
@@ -147,16 +163,31 @@ async function startServer() {
   app.use("/api/trpc/auth.signIn", authLimiter);
   app.use("/api/trpc/auth.signUp", authLimiter);
 
+  app.get(["/health", "/api/health"], (_req, res) => {
+    res.status(200).json({
+      ok: true,
+      status: "healthy",
+      timestamp: new Date().toISOString(),
+      uptime: Math.floor(process.uptime()),
+    });
+  });
+
   app.post("/api/tts", async (req, res) => {
     const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
     const voiceInput =
-      typeof req.body?.voice === "string" ? req.body.voice.trim().toLowerCase() : "nova";
+      typeof req.body?.voice === "string"
+        ? req.body.voice.trim().toLowerCase()
+        : "nova";
     const speedInput =
-      typeof req.body?.speed === "number" ? req.body.speed : Number(req.body?.speed ?? 1);
+      typeof req.body?.speed === "number"
+        ? req.body.speed
+        : Number(req.body?.speed ?? 1);
     const voice = allowedVoices.has(voiceInput as any)
       ? (voiceInput as "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer")
       : "nova";
-    const speed = Number.isFinite(speedInput) ? Math.min(4, Math.max(0.25, speedInput)) : 1;
+    const speed = Number.isFinite(speedInput)
+      ? Math.min(4, Math.max(0.25, speedInput))
+      : 1;
 
     if (!text) {
       return res.status(400).json({ error: "text is required" });
@@ -165,7 +196,9 @@ async function startServer() {
       return res.status(400).json({ error: "text too long (max 500 chars)" });
     }
     if (!openai) {
-      return res.status(503).json({ error: "OPENAI_API_KEY is not configured" });
+      return res
+        .status(503)
+        .json({ error: "OPENAI_API_KEY is not configured" });
     }
 
     try {
@@ -204,7 +237,7 @@ async function startServer() {
     serveStatic(app);
   }
 
-  const PORT = parseInt(process.env.PORT || "8080", 10);
+  const PORT = parseInt(process.env.PORT || "3000", 10);
   const HOST = "0.0.0.0";
 
   server.listen(PORT, HOST, () => {
@@ -213,7 +246,8 @@ async function startServer() {
 
   const shutdown = (signal: string) => {
     console.log(`\n${signal} received - shutting down gracefully...`);
-    server.close(() => {
+    server.close(async () => {
+      await closeDbPool();
       console.log("HTTP server closed.");
       process.exit(0);
     });

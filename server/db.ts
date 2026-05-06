@@ -1,10 +1,30 @@
-import { eq, or, isNull, isNotNull, and, inArray, like, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, books, folders, words, userProgress } from "../drizzle/schema";
+import {
+  eq,
+  or,
+  isNull,
+  isNotNull,
+  and,
+  inArray,
+  like,
+  sql,
+} from "drizzle-orm";
+import { drizzle, type MySql2Database } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
+import {
+  InsertUser,
+  users,
+  books,
+  folders,
+  words,
+  userProgress,
+} from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { logger } from "./_core/logger";
 
-let _db: ReturnType<typeof drizzle> | null = null;
+type Db = MySql2Database<Record<string, never>> & { $client: mysql.Pool };
+
+let _db: Db | null = null;
+let _pool: mysql.Pool | null = null;
 const GLOBAL_CACHE_TTL_MS = 30_000;
 
 type CacheEntry<T> = {
@@ -40,14 +60,50 @@ export function resetDbCacheForTests() {
   invalidateGlobalCache();
 }
 
-export async function getDb() {
-  if (!_db) {
+function readPositiveIntEnv(name: string, fallback: number) {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+
+  const value = Number.parseInt(raw, 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function getDbPool() {
+  if (!_pool) {
     if (!ENV.databaseUrl) {
       throw new Error("DATABASE_URL is not configured");
     }
-    _db = drizzle(ENV.databaseUrl);
+
+    _pool = mysql.createPool({
+      uri: ENV.databaseUrl,
+      waitForConnections: true,
+      connectionLimit: readPositiveIntEnv("DB_POOL_CONNECTION_LIMIT", 10),
+      maxIdle: readPositiveIntEnv("DB_POOL_MAX_IDLE", 10),
+      idleTimeout: readPositiveIntEnv("DB_POOL_IDLE_TIMEOUT_MS", 60_000),
+      queueLimit: readPositiveIntEnv("DB_POOL_QUEUE_LIMIT", 0),
+      connectTimeout: readPositiveIntEnv("DB_CONNECT_TIMEOUT_MS", 10_000),
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 0,
+    });
   }
+
+  return _pool;
+}
+
+export async function getDb() {
+  if (!_db) {
+    _db = drizzle<Record<string, never>, mysql.Pool>(getDbPool());
+  }
+
   return _db;
+}
+
+export async function closeDbPool() {
+  if (!_pool) return;
+
+  await _pool.end();
+  _pool = null;
+  _db = null;
 }
 
 // ----------------------- User queries -----------------------
@@ -212,14 +268,22 @@ export async function getSavedGlobalFolderIds(userId: number) {
   const savedFolders = await db
     .select({ sourceGlobalFolderId: folders.sourceGlobalFolderId })
     .from(folders)
-    .where(and(eq(folders.createdBy, userId), isNotNull(folders.sourceGlobalFolderId)));
+    .where(
+      and(
+        eq(folders.createdBy, userId),
+        isNotNull(folders.sourceGlobalFolderId)
+      )
+    );
 
   return savedFolders
     .map(entry => entry.sourceGlobalFolderId)
     .filter((folderId): folderId is number => folderId !== null);
 }
 
-async function cloneGlobalFolderToPersonal(globalFolderId: number, userId: number) {
+async function cloneGlobalFolderToPersonal(
+  globalFolderId: number,
+  userId: number
+) {
   const db = await getDb();
   const globalFolder = await getGlobalFolderById(globalFolderId);
   if (!globalFolder) {
@@ -229,7 +293,12 @@ async function cloneGlobalFolderToPersonal(globalFolderId: number, userId: numbe
   const existing = await db
     .select()
     .from(folders)
-    .where(and(eq(folders.createdBy, userId), eq(folders.sourceGlobalFolderId, globalFolderId)))
+    .where(
+      and(
+        eq(folders.createdBy, userId),
+        eq(folders.sourceGlobalFolderId, globalFolderId)
+      )
+    )
     .limit(1);
 
   if (existing.length > 0) {
@@ -249,7 +318,12 @@ async function cloneGlobalFolderToPersonal(globalFolderId: number, userId: numbe
   const createdFolder = await db
     .select()
     .from(folders)
-    .where(and(eq(folders.createdBy, userId), eq(folders.sourceGlobalFolderId, globalFolderId)))
+    .where(
+      and(
+        eq(folders.createdBy, userId),
+        eq(folders.sourceGlobalFolderId, globalFolderId)
+      )
+    )
     .limit(1);
 
   const personalFolder = createdFolder[0];
@@ -275,12 +349,20 @@ async function cloneGlobalFolderToPersonal(globalFolderId: number, userId: numbe
   return personalFolder;
 }
 
-export async function toggleSaveGlobalFolder(globalFolderId: number, userId: number) {
+export async function toggleSaveGlobalFolder(
+  globalFolderId: number,
+  userId: number
+) {
   const db = await getDb();
   const existing = await db
     .select()
     .from(folders)
-    .where(and(eq(folders.createdBy, userId), eq(folders.sourceGlobalFolderId, globalFolderId)))
+    .where(
+      and(
+        eq(folders.createdBy, userId),
+        eq(folders.sourceGlobalFolderId, globalFolderId)
+      )
+    )
     .limit(1);
 
   if (existing.length > 0) {
@@ -302,7 +384,10 @@ export async function toggleSaveGlobalFolder(globalFolderId: number, userId: num
   return { saved: true };
 }
 
-export async function toggleSaveGlobalBook(globalBookId: number, userId: number) {
+export async function toggleSaveGlobalBook(
+  globalBookId: number,
+  userId: number
+) {
   const db = await getDb();
   const globalBookFolders = await db
     .select({ id: folders.id })
@@ -362,15 +447,21 @@ export async function toggleSaveGlobalBook(globalBookId: number, userId: number)
 }
 
 export async function getAllFolders() {
-  const cached = getCachedValue<typeof folders.$inferSelect[]>("global:folders");
+  const cached =
+    getCachedValue<(typeof folders.$inferSelect)[]>("global:folders");
   if (cached) return cached;
   const db = await getDb();
-  const result = await db.select().from(folders).where(eq(folders.isGlobal, true));
+  const result = await db
+    .select()
+    .from(folders)
+    .where(eq(folders.isGlobal, true));
   return setCachedValue("global:folders", result);
 }
 
 export async function getAllFoldersWithWordCounts() {
-  const cached = getCachedValue<Array<{ folder: typeof folders.$inferSelect; wordCount: number }>>("global:folders-with-counts");
+  const cached = getCachedValue<
+    Array<{ folder: typeof folders.$inferSelect; wordCount: number }>
+  >("global:folders-with-counts");
   if (cached) return cached;
   const db = await getDb();
   const rows = await db
@@ -394,10 +485,13 @@ export async function getAllFoldersWithWordCounts() {
       folders.updatedAt
     );
 
-  return setCachedValue("global:folders-with-counts", rows.map(row => ({
-    folder: row.folder,
-    wordCount: Number(row.wordCount) || 0,
-  })));
+  return setCachedValue(
+    "global:folders-with-counts",
+    rows.map(row => ({
+      folder: row.folder,
+      wordCount: Number(row.wordCount) || 0,
+    }))
+  );
 }
 
 export async function getAllWords() {
@@ -410,12 +504,7 @@ export async function getFolderById(folderId: number, userId: number) {
   const result = await db
     .select()
     .from(folders)
-    .where(
-      and(
-        eq(folders.id, folderId),
-        eq(folders.createdBy, userId)
-      )
-    )
+    .where(and(eq(folders.id, folderId), eq(folders.createdBy, userId)))
     .limit(1);
 
   return result.length > 0 ? result[0] : undefined;
@@ -505,7 +594,9 @@ export async function deletePersonalFolder(folderId: number, userId: number) {
     return { deleted: false };
   }
 
-  await db.delete(folders).where(and(eq(folders.id, folderId), eq(folders.createdBy, userId)));
+  await db
+    .delete(folders)
+    .where(and(eq(folders.id, folderId), eq(folders.createdBy, userId)));
 
   return { deleted: true };
 }
@@ -540,22 +631,28 @@ export async function getWordsByFolderId(folderId: number, userId: number) {
   const folder = await getFolderById(folderId, userId);
   if (!folder) return [];
 
-  return db.select().from(words).where(
-    and(
-      eq(words.folderId, folderId),
-      or(isNull(words.createdBy), eq(words.createdBy, userId))
-    )
-  );
+  return db
+    .select()
+    .from(words)
+    .where(
+      and(
+        eq(words.folderId, folderId),
+        or(isNull(words.createdBy), eq(words.createdBy, userId))
+      )
+    );
 }
 
 export async function getGlobalWordsByFolderId(folderId: number) {
   const cacheKey = `global:folder-words:${folderId}`;
-  const cached = getCachedValue<typeof words.$inferSelect[]>(cacheKey);
+  const cached = getCachedValue<(typeof words.$inferSelect)[]>(cacheKey);
   if (cached) return cached;
   const db = await getDb();
   const folder = await getGlobalFolderById(folderId);
   if (!folder) return [];
-  const result = await db.select().from(words).where(eq(words.folderId, folderId));
+  const result = await db
+    .select()
+    .from(words)
+    .where(eq(words.folderId, folderId));
   return setCachedValue(cacheKey, result);
 }
 
@@ -650,9 +747,15 @@ export async function getUserProgress(userId: number, folderId: number) {
     return { totalWords: 0, knownWords: 0, progress: [] };
   }
 
-  const progress = await db.select().from(userProgress).where(
-    and(eq(userProgress.userId, userId), inArray(userProgress.wordId, wordIds))
-  );
+  const progress = await db
+    .select()
+    .from(userProgress)
+    .where(
+      and(
+        eq(userProgress.userId, userId),
+        inArray(userProgress.wordId, wordIds)
+      )
+    );
 
   const knownCount = progress.filter(p => p.known).length;
 
@@ -714,7 +817,10 @@ export async function setWordKnownStatus(
 }
 
 // ----------------------- User profile queries -----------------------
-export async function updateUser(userId: number, data: { name?: string; email?: string }) {
+export async function updateUser(
+  userId: number,
+  data: { name?: string; email?: string }
+) {
   const db = await getDb();
   try {
     const updateData: Record<string, unknown> = {};
@@ -724,7 +830,11 @@ export async function updateUser(userId: number, data: { name?: string; email?: 
 
     await db.update(users).set(updateData).where(eq(users.id, userId));
 
-    const result = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    const result = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
     return result.length > 0 ? result[0] : undefined;
   } catch (error) {
     logger.error("db.user_update_failed", {
@@ -752,12 +862,15 @@ export async function getUserTotalStats(userId: number) {
 
   const folderIds = userFolders.map(f => f.id);
 
-  const allWords = await db.select().from(words).where(
-    and(
-      inArray(words.folderId, folderIds),
-      or(isNull(words.createdBy), eq(words.createdBy, userId))
-    )
-  );
+  const allWords = await db
+    .select()
+    .from(words)
+    .where(
+      and(
+        inArray(words.folderId, folderIds),
+        or(isNull(words.createdBy), eq(words.createdBy, userId))
+      )
+    );
 
   const wordIds = allWords.map(w => w.id);
 
@@ -765,9 +878,15 @@ export async function getUserTotalStats(userId: number) {
     return { totalWords: 0, knownWords: 0, unknownWords: 0 };
   }
 
-  const progress = await db.select().from(userProgress).where(
-    and(eq(userProgress.userId, userId), inArray(userProgress.wordId, wordIds))
-  );
+  const progress = await db
+    .select()
+    .from(userProgress)
+    .where(
+      and(
+        eq(userProgress.userId, userId),
+        inArray(userProgress.wordId, wordIds)
+      )
+    );
 
   const knownCount = progress.filter(p => p.known).length;
   const unknownCount = allWords.length - knownCount;
@@ -797,9 +916,15 @@ export async function getGlobalTotalStats(userId: number) {
 
   const wordIds = allWords.map(w => w.id);
 
-  const progress = await db.select().from(userProgress).where(
-    and(eq(userProgress.userId, userId), inArray(userProgress.wordId, wordIds))
-  );
+  const progress = await db
+    .select()
+    .from(userProgress)
+    .where(
+      and(
+        eq(userProgress.userId, userId),
+        inArray(userProgress.wordId, wordIds)
+      )
+    );
   const knownCount = progress.filter(p => p.known).length;
   const unknownCount = allWords.length - knownCount;
   return {
@@ -812,7 +937,12 @@ export async function getGlobalTotalStats(userId: number) {
 // ----------------------- Bulk word import -----------------------
 export async function importWords(
   folderId: number,
-  wordsData: Array<{ english: string; uzbek: string; description?: string; example?: string }>,
+  wordsData: Array<{
+    english: string;
+    uzbek: string;
+    description?: string;
+    example?: string;
+  }>,
   createdBy: number | null
 ) {
   const db = await getDb();
@@ -843,7 +973,7 @@ export async function importWords(
 
 // ----------------------- Book queries -----------------------
 export async function getGlobalBooks() {
-  const cached = getCachedValue<typeof books.$inferSelect[]>("global:books");
+  const cached = getCachedValue<(typeof books.$inferSelect)[]>("global:books");
   if (cached) return cached;
   const db = await getDb();
   const result = await db.select().from(books).where(eq(books.isGlobal, true));
